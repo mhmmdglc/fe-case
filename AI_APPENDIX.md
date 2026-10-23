@@ -1,28 +1,61 @@
 # AI Appendix
 
-## Tools and models
+This file covers what the case asks for: the AI tools and models used, the two prompts that shaped
+the architecture, and the AI errors I identified and corrected. Every prompt below is quoted
+verbatim. Every error and check described here happened during the project.
 
-| Tool | Model | Used for |
+---
+
+## 1. AI tools and models
+
+| Tool | Model | Role in the project |
 |---|---|---|
-| Claude Code (desktop app, Code tab) | Claude Opus 5.5 (`claude-opus-5-5`) | Reviewing the starter repository, planning, writing the code and tests, running tests/build, checking the app in the built-in browser |
-| Claude Code subagents (Analyst, QA, Code Reviewer, Frontend Engineer) | Same model as the session (subagents inherit it) | The multi-agent verification round described below |
-| _TODO: fill in the tool and model that produced the second-opinion review (prompt 1 below)_ | _TODO_ | Independent review of Claude's first plan against the PDF and the mock API code |
+| Claude Code (desktop app) | Claude Opus 5.5 (`claude-opus-5-5`) | Main engineering partner: reviewing the starter and the case PDF, architecture planning, implementation, tests, and checks in the browser |
+| Astra | — | Independent second opinion: cross-checked Claude's architecture plan against the PDF and the mock API before any code was written |
+| Claude Code subagents | Same model as the session | Separate roles (Requirements Analyst, QA Engineer, Code Reviewer, Frontend Engineer) for independent verification, the follow-up features and the architecture refactor |
+| DeepSeek | _to be filled in_ | Final whole-project test pass (see step 6 below) |
 
-Workflow:
-1. Claude reviewed the starter repository and the case PDF and wrote a plan.
-2. I had that plan reviewed independently.
-3. I asked Claude to evaluate the review.
-4. I fixed the final decisions (prompt 2) and only then let Claude implement.
+### How I worked
 
-Every step was verified with tests, `tsc`, a production build and a manual run in the browser.
+1. **Analysis and architecture before any code.**
+   - With Claude (Opus 5.5) I reviewed the starter repository (including a security pass over the
+     code, dependencies and the case PDF) and turned the PDF into a plan.
+   - I then had the plan cross-checked by Astra, compared the two views and fixed the open points.
+     Examples: how Redux and TanStack Query share the promotion list, the real error shapes
+     (422 `string[]`, 204 with no body), and the preview's empty-target behaviour.
+   - Only after these decisions were written down (prompt 2) did implementation start.
+2. **Task breakdown.** The decisions became small tasks that could each be checked on their own:
+   setup, domain rules with tests, API/state layer, product screens, promotion management, preview,
+   documentation. Each task ended in its own commit.
+3. **Implementation with Claude, task by task.** Every task was checked before moving on: unit and
+   integration tests, `tsc`, a production build, and the real flows in a browser (filters, 409/422,
+   preview, delete). I reviewed each step and sent back corrections (sections 3.3 and 3.4).
+4. **Independent verification with separate roles.** A second round used dedicated agents:
+   - a read-only Analyst mapped every PDF requirement to file:line evidence;
+   - QA wrote tests from the acceptance criteria, without reading the implementation;
+   - a read-only Code Reviewer checked correctness and security;
+   - an Engineer fixed only the findings that were approved.
 
-## The two prompts that shaped the architecture
+   Claude acted as Engineering Manager: it verified each report before acting on it and ran the
+   final checks itself.
+5. **Architecture refactor for growth.** The code was reorganised so it can grow:
+   - a feature-sliced layout with a React-free `services/` layer, configurable `VITE_API_BASE_URL`;
+   - per feature: `hooks/`, `store/`, presentational `components/`, container `pages/`;
+   - central route builders, lazy-loaded pages, and an "Adding a feature" checklist in the README.
 
-### Prompt 1: second-opinion review of the plan
+   Behaviour did not change: the same 153 tests pass, with only import paths changed.
+6. **Final check with DeepSeek.** _To be completed after the DeepSeek run: scope, findings, and
+   what was changed as a result._
 
-Sent after Claude's first plan. The message contained the review below and, after it, a longer
-draft implementation prompt (not repeated here). It is quoted verbatim up to that draft, except
-for two links to local file paths, which were removed.
+---
+
+## 2. The two prompts that shaped the architecture
+
+### Prompt 1: Astra's cross-check of the architecture plan
+
+This message carried Astra's review of Claude's first plan. It was followed by a longer draft
+implementation prompt, which is not repeated here. The text is quoted verbatim up to that draft,
+with two links to local file paths removed.
 
 > şimdi sana yorumumu atıyorum. ona göre başlamadan attıgım yorumu değerlendirimisin. dogru mudur eksi kyeri var mıdır
 >
@@ -35,13 +68,15 @@ for two links to local file paths, which were removed.
 > * Preview tespitinde küçük hata: `targetProductIds: []` bütün ürünleri döndürmüyor; boş sonuç döndürüyor. Alanın hiç gönderilmemesi bütün ürünlerin dönmesine yol açıyor. Kategori alanı eksik olduğunda da benzer sorun var.
 > * Teslim ve güvenlik: Kaynaklarda şüpheli davranış görülmemesi, bağımlılıkların güvenli olduğunun kanıtı değil. Ayrıca mevcut MSW yalnızca geliştirme modunda açılıyor; `build` başarılı olsa bile `preview` altında API çalışmayacak.
 
-**Why it mattered:** this review shaped how the API layer works. It led to:
-- a single `ApiError` model that reads `string[]` errors and conflicts and handles empty 204
-  bodies;
-- invalidating product detail queries, not only the product list, after a promotion change;
-- the `npm run demo` mode.
+**Why it mattered:**
+- It fixed the API layer: one typed `ApiError` model that reads 422 `errors` and 409 `conflicts`
+  as `string[]`, and handles the bodiless 204 from DELETE.
+- It required promotions in Redux to stay in sync with the API on every fetch, not only after
+  create or delete.
+- It required product details to be refreshed after a promotion changes, not only the list.
+- It led to a demo mode, because the mock API only runs in development.
 
-### Prompt 2: final decisions before implementation
+### Prompt 2: final architecture decisions before implementation
 
 > Değerlendirmeni kabul ediyorum. Önceki plan ve düzeltmeler üzerinden uygulamaya geçelim.
 >
@@ -60,21 +95,23 @@ for two links to local file paths, which were removed.
 >
 > Yeni bir uzun değerlendirme turu yerine kısa uygulama sırasını belirtip kodlamaya başla. Çalışan, sade ve mülakatta açıklanabilir bir çözüm hedefle.
 
-**Why it mattered:** these decisions became the core design:
-- promotions reach Redux from a single query function, with a revision guard against stale list
-  responses (`features/promotions/promotionsSlice.ts`, `queries.ts`);
-- standard `keepPreviousData` with an explicit "Updating results…" state;
-- a preview keyed by its request that dims outdated results;
-- a UTC `getPromotionStatus`;
-- filters kept in Redux rather than in the URL.
+**Why it mattered:** these points became the core design.
+- **Single sync point.** The promotion list reaches Redux only from the query function, and a
+  revision guard drops list responses that started before a successful create or delete
+  (`src/features/promotions/hooks/usePromotionQueries.ts`,
+  `src/features/promotions/store/promotionsSlice.ts`).
+- **Standard caching.** TanStack Query mechanisms only, with `keepPreviousData` and a visible
+  "updating" state.
+- **Preview.** Keyed by its request, never sent for an invalid target, and old results are
+  dimmed rather than shown as current.
+- **Dates.** One UTC `getPromotionStatus`, and deterministic tests with a frozen clock and a reset
+  mock database.
+- **Scope.** Mandatory screens first, the bonus after; filters stay in Redux, not in the URL.
 
-## Multi-agent verification round (after the first implementation)
+### Supporting prompt: role-based verification process
 
-This prompt came **after** the app was already implemented, so it did not shape the architecture.
-It turned the next step into an independent verification round with separate roles. Claude Code ran
-real subagents for each role. The main session acted as Engineering Manager: it wrote each
-agent's brief, file ownership and acceptance criteria, and checked every report before acting on
-it.
+I used this prompt after the first implementation to run the independent verification round
+(step 4). It shaped how the work was checked, not the architecture.
 
 <details>
 <summary>Process prompt (verbatim)</summary>
@@ -281,155 +318,94 @@ dağılımını paylaş ve mevcut kapsam içinde uygulamaya devam et.
 
 </details>
 
-Claude kept the roles but adapted the prompt to the existing code. The Analyst audited the code
-against the PDF instead of starting from scratch, and every brief listed the decisions already
-made so they would not be reopened.
+---
 
-### What actually ran
+## 3. AI errors I identified and corrected
 
-| Agent | Mode | Result |
-|---|---|---|
-| Requirements & API Analyst | read-only | Every mandatory requirement was met, each mapped to file:line evidence. It found: the AI_APPENDIX TODO, commits not yet pushed, a 409 alert that stayed after the target or dates changed (G3), "submit not disabled while the preview shows conflicts" (G4), and stale wording in this appendix (G5). |
-| QA, round 1 | new test files only | 21 tests written from the acceptance criteria (product list filters and paging, preview). No app bug found. It corrected one wrong expectation of its own (p-012 is on page 2). |
-| Code Reviewer | read-only | No blocking issues; `npm audit` 0 vulnerabilities; no XSS sinks or secrets. It found: (1) a preview render loop every 400 ms, (2) the mock-reconnect fix skipping POST/DELETE, (3–4) missing tests for the stale-list guard and for delete, and smaller items: a possible duplicate row, the preview not dimming as documented, ids not encoded in links. |
-| Frontend Engineer | assigned production files only | Fixed G3 and Reviewer items 1, 2, 5, 6 and 7. It did not check the browser and said so. |
-| QA, round 2 | test files only | 12 more tests. All 7 tests for the fixes failed on the pre-fix code and pass now. It showed that a single-tree stale-list test could not detect the bug the guard prevents, and replaced it with a two-tree test that does. |
+### 3.1 Wrong claim about the preview endpoint
 
-### Manager decisions
+- **What the AI got wrong:** Claude's first plan said that `POST /api/promotions/preview` with
+  `targetType: "products"` and no selected products returns all 50 products.
+- **How it was caught:** Astra's cross-check (prompt 1) compared this with
+  `src/mocks/handlers.ts`. An empty array returns **no** products; all products come back only
+  when the field is **missing**, or when the category is empty.
+- **Correction:** `buildPreviewRequest` returns `null` until the target is valid, so neither case
+  is ever sent. This is covered by unit tests in `src/domain/promotionForm.test.ts`.
 
-- **G4 not changed.** The preview is advisory and debounced, so the API's 409 remains what blocks
-  submission. The PDF requirement ("block submission and display the conflict details returned by
-  the API") is met by that.
-- **Reviewer item 2 verified before assigning.** Claude checked it with `curl`: a POST or DELETE
-  that bypasses the mock gets a 404 with no content type.
-- **Final integration checks run by the Manager:**
-  - typecheck;
-  - two full test runs (118/118);
-  - production build and `npm audit`;
-  - in the browser: a DELETE after the service worker forgot the page reconnects and succeeds.
+### 3.2 Incomplete Redux sync and cache invalidation in the plan
 
-### Evidence
+- **What the AI got wrong:** the plan updated Redux only after create and delete, and refreshed
+  only the product list after a promotion change. As a result:
+  - Redux would not have been filled on first load or on refetch;
+  - a cached product detail page could show an old price.
+- **How it was caught:** Astra's cross-check against the PDF requirement "keep the Redux store in
+  sync with the API response".
+- **Correction:**
+  - One sync point in the query function, with a revision guard.
+  - After a change, cached product and promotion queries that are off screen are removed, and the
+    ones on screen are refetched.
+  - A two-tree integration test fails if the guard is broken.
 
-- Tests: 82 before the round, 106 after QA round 1, 118 after round 2.
-- The agents' reports are summarised here; the full transcripts stay in the Claude Code session.
+### 3.3 Conflicts with scheduled promotions were invisible
 
-### Feature round: delete impact and Duplicate
+- **What the AI got wrong:** the UI only showed promotions that are active today. In the product
+  list, "Linen Shirt Dress" showed "No promotion", yet creating a promotion for it was rejected as
+  a conflict. The API also counts the scheduled "New Arrivals Preview".
+- **How I caught it:** I tried it in the running app and compared the product list with the
+  conflict message.
+- **Correction:**
+  - The product list shows the upcoming promotion.
+  - Conflict messages explain that scheduled promotions count.
+  - The form lists the active and scheduled promotions already covering the chosen products or
+    category, including single-product promotions inside a category, and marks the ones that
+    overlap the chosen dates.
 
-I asked for:
-- a delete confirmation that explains the impact (affected products, days left);
-- an Edit button.
+### 3.4 "Could not reach the server", and a fix that missed POST/DELETE
 
-The mock API has no update endpoint, and its contract stays unchanged. Claude explained this and
-let me choose. I chose **Duplicate**: the create form opens prefilled, and the original stays
-unchanged.
+- **What went wrong:** I saw this error in a tab that had been idle for a while. The browser had
+  restarted MSW's service worker, the restarted worker forgot the page, and /api requests went to
+  the real network.
+- **First AI error:** Claude added reconnect-and-retry-once, but only for network errors and HTML
+  responses.
+- **How it was caught:** the Code Reviewer agent found that Vite answers a bypassed POST or DELETE
+  with a 404 that has no content type. Deleting would have shown a misleading "404". Claude
+  confirmed it with `curl`.
+- **Correction:**
+  - Any response that is not JSON and not a 204 now counts as "not reached".
+  - Tests cover POST, DELETE, and a real JSON 404, which must not trigger a reconnect.
+  - Claude also checked it in the browser.
 
-The Manager first wrote one contract: function signatures, component props and the exact
-user-visible sentences. The Engineer and QA agents then worked in parallel from it, each in its
-own files.
+### 3.5 Pressing Enter in a field submitted the form
 
-- **Engineer:** `deletionImpact`/`daysBetween`, `formValuesFromPromotion`, `DeletePromotionDialog`,
-  `PromotionFormDrawer`, and buttons on the list and detail pages.
-- **QA:** 35 tests from the same contract (153 in total). The product tags of a duplicate are
-  collapsed in jsdom, so QA reported them as not verifiable there.
+- **What the AI got wrong:** while checking the form in the browser, Claude first dismissed
+  unexpected validation errors as leftover text from an animation. They were real: confirming a
+  date or a select option with Enter triggered the browser's implicit form submit. With a complete
+  form, this would have saved a promotion nobody had finished reviewing.
+- **How it was caught:** the same symptom appeared again during a later browser check. This time
+  Claude reproduced it with a real key press.
+- **Correction:** Enter inside an input no longer submits the form; only the button does. A test
+  fails without the fix and passes with it.
 
-**Errors in Claude's own contract, caught by the Engineer agent and fixed by the Manager:**
-- The plural helper produced "1 product go back to their base price"; it now says "1 product goes
-  back to its base price".
-- For a scheduled promotion, the contract said a product's price "stays" at its base price. That is
-  wrong when another promotion discounts the product today. The dialog now shows today's effective
-  price.
+### Other issues found during verification
 
-**Browser checks by the Manager:**
-- the Denim Weekend dialog: 2 products, 6 days left, coupon line, price changes;
-- Duplicate: tags visible, conflict with the original shown;
-- with new dates the copy saves as Scheduled and the original is unchanged;
-- deleting the copy from its detail page returns to the list.
+- **Preview render loop** (Code Reviewer): a new request object on every render restarted the
+  debounce, so the preview re-rendered every 400 ms, even with the drawer closed. Fixed with
+  `useMemo`; a Profiler-based test fails without the fix.
+- **Wrong text and price in the delete dialog** (Engineer agent, from Claude's own task
+  contract): it said "1 product go back", and showed base price for a product another promotion
+  discounts today. Both fixed.
+- **Tooling and test setup** (found by Claude itself):
+  - the newest Vitest and jsdom need Node 22; the project uses compatible versions for Node 20;
+  - the clock was frozen after the mock seed had already been imported (ES module hoisting);
+  - one test assumed the wrong seed date for a scheduled promotion.
 
-## AI errors I caught and corrected
+---
 
-### 1. Wrong claim about the preview endpoint
+## Verification summary
 
-**What the AI got wrong:** Claude's first plan said that `POST /api/promotions/preview` with
-`targetType: "products"` and no selected products returns all 50 products.
-
-**How I caught it:** the review (prompt 1) compared this with `src/mocks/handlers.ts`:
-- `if (targetType === "products" && targetProductIds)` is true for an empty array, so `[]`
-  returns **no** products;
-- all products are returned only when the field is **missing**, or when `targetCategory` is
-  empty.
-
-**Fix:** `buildPreviewRequest` returns `null` until the target is valid (at least one product, or a
-category), so neither case is ever sent. Unit tests in `domain/promotionForm.test.ts` cover this.
-
-### 2. Incomplete Redux sync and cache invalidation in the plan
-
-**What the AI got wrong:** the first plan updated the Redux promotion list only after create and
-delete, and after a promotion change it refetched only the product list. With that plan:
-- Redux would not have been filled on first load or refetch;
-- a cached product detail page would have shown an old effective price.
-
-**How I caught it:** the review (prompt 1) checked the plan against the PDF requirement "keep the
-Redux store in sync with the API response".
-
-**Fix:**
-- The list is synced from the query function on every fetch.
-- A `revision` guard drops responses that are older than the last mutation.
-- After a change, inactive product and promotion queries are removed and active ones are
-  refetched.
-- `promotionFlows.test.tsx` checks that the cached detail entry is gone and that the refetched list
-  replaces Redux.
-
-### 3. Conflicts with scheduled promotions were invisible in the UI
-
-**What the AI got wrong:** Claude's UI showed only promotions that are active today. In the
-product list, Linen Shirt Dress showed "No promotion". Yet creating a promotion for it was
-rejected as a conflict. The reason was the scheduled "New Arrivals Preview" (26–29 Oct), which the
-API's conflict check counts but the UI never showed.
-
-**How I caught it:** I tried to create a promotion for that product in the running app and
-compared the result with the product list (screenshots of both).
-
-**Fix:**
-- The product list shows "Next: <promotion> · from <date>" for an upcoming promotion.
-- Conflict messages say that scheduled promotions count.
-- The form lists the active and scheduled promotions already covering the chosen products or
-  category, including single-product promotions inside a category, and marks the ones that overlap
-  the chosen dates.
-- Rules are in `domain/targeting.ts` with tests; there is a form test for the dresses case.
-
-### Issues the AI caught in its own work during implementation
-
-These were found by Claude while running the tooling. They are listed for completeness, not as my
-own catches.
-
-- **Node compatibility.** The newest Vitest (5.x) and jsdom (30.x) require Node 22, but this
-  machine runs Node 20.19. This was caught by checking `npm view … engines` before installing.
-  Vitest 4 and jsdom 27 were used instead.
-- **Freezing the date in tests.** The first test setup froze `Date` inside the same file that
-  imports the MSW server. ES module imports are hoisted, so the seed data (dates computed at import
-  time) would have used the real date. The freeze was moved to a separate setup file that runs
-  first (`src/test/freezeDate.ts`).
-- **Wrong date in a test.** A test assumed "Black Friday Knitwear" is scheduled at today+15. The
-  test failed, and reading `src/mocks/db.ts` showed today+7…+9. The test dates were corrected.
-- **Hidden error alert.** While checking the form in the browser, the 409 conflict alert rendered
-  above the visible part of the scrolled drawer. The form now scrolls server feedback into view.
-- **Enter submitted the form.** While verifying fix 3 in the browser, Claude saw validation errors
-  appear without pressing the submit button. Pressing Enter to confirm a date (or a select option)
-  triggered the browser's implicit form submission; with a complete form this would have saved the
-  promotion. Earlier in the session Claude had wrongly dismissed the same symptom as leftover error
-  text from an animation. Fix: Enter inside an input no longer submits the form. A test fails
-  without the fix and passes with it.
-
-### Errors found by the review agents
-
-- **"Could not reach the server" (user-reported).** I saw this error in the running demo tab. Claude
-  found the cause: an idle MSW service worker is restarted by the browser and forgets the page, so
-  /api requests bypass the mock. Claude added reconnect-and-retry-once, outside the agent flow
-  because it was a direct runtime bug report.
-- **Claude's reconnect fix missed POST and DELETE.** The Code Reviewer agent found that Vite answers
-  a bypassed POST or DELETE with a 404 that has no content type, so the reconnect never ran. Deleting
-  would have shown a misleading "404" error. Claude confirmed it with `curl`, the Engineer agent
-  fixed it, QA added tests, and Claude checked it in the browser.
-- **Preview render loop.** Found by the Reviewer: a new request object was built on every render and
-  fed to the debounce, so the preview re-rendered every 400 ms, even with the drawer closed. Fixed
-  with `useMemo`; a Profiler-based test fails without the fix.
+- 153 tests: unit tests for the business rules, plus integration tests against the real MSW
+  handlers with a frozen clock and a reset mock database.
+- `tsc` (no unused locals), the production build, and `npm audit` (0 vulnerabilities at the time
+  of writing).
+- Main flows checked in a browser after every round: filters and paging, product and promotion
+  detail, 409/422 handling, live preview, delete impact, Duplicate, and mock reconnect.
