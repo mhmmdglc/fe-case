@@ -13,7 +13,7 @@ verbatim. Every error and check described here happened during the project.
 | Claude Code (desktop app) | Claude Opus 5.5 (`claude-opus-5-5`) | Main engineering partner: reviewing the starter and the case PDF, architecture planning, implementation, tests, and checks in the browser |
 | Astra | — | Independent second opinion: cross-checked Claude's architecture plan against the PDF and the mock API before any code was written |
 | Claude Code subagents | Same model as the session | Separate roles (Requirements Analyst, QA Engineer, Code Reviewer, Frontend Engineer) for independent verification, the follow-up features and the architecture refactor |
-| DeepSeek | _to be filled in_ | Final whole-project test pass (see step 6 below) |
+| DeepSeek | — | Independent final check of the whole project after the refactor (see step 6 below) |
 
 ### How I worked
 
@@ -44,8 +44,27 @@ verbatim. Every error and check described here happened during the project.
    - central route builders, lazy-loaded pages, and an "Adding a feature" checklist in the README.
 
    Behaviour did not change: the same 153 tests pass, with only import paths changed.
-6. **Final check with DeepSeek.** _To be completed after the DeepSeek run: scope, findings, and
-   what was changed as a result._
+6. **Final check with DeepSeek.** After the refactor, I asked DeepSeek to check the whole
+   project independently, as a last safety net before delivery.
+   - **Scope.** DeepSeek re-ran the full test suite, typecheck, production build and demo build
+     itself (`VITE_ENABLE_MOCKS=true`), all green with 153/153 tests. It also checked the repository
+     state, the README and this appendix.
+   - **Findings:**
+     - two unfilled DeepSeek placeholders in this file;
+     - a stale README limitation that still claimed a single 1.3 MB bundle without code
+       splitting, although pages had been lazy-loaded since the refactor;
+     - `.claude/` (local tool config) was not ignored by git;
+     - the covered-products list for a category target loads at most 100 products;
+     - the large Ant Design vendor chunk still triggers Vite's 500 kB warning;
+     - a commit-sync note: the work had not yet been pushed to the assigned repository.
+   - **Result:**
+     - The README limitations were rewritten. While doing this, Claude also corrected a second
+       stale wording ("Scheduled from" is now the "Next: <promotion>" hint).
+     - `.claude/` was added to `.gitignore`.
+     - The 100-product category page and the vendor chunk are documented as known limitations,
+       not changed, since neither affects this case's data or an internal desktop tool.
+     - This step was written up.
+     - Behaviour did not change, and the suite still passes 153/153.
 
 ---
 

@@ -234,11 +234,15 @@ imported, and the mutable mock database is reset before every test.
 
 ## Known limitations
 
-- The production bundle is a single ~1.3 MB chunk (mostly Ant Design). Route-level code splitting
-  was left out to keep the solution simple.
+- Pages are separate lazy-loaded chunks, but the shared vendor code (mostly Ant Design, about
+  690 kB minified) is still one large chunk and triggers Vite's 500 kB warning. Splitting it further
+  with `manualChunks` was not needed for an internal desktop tool.
+- For a category target, the list of covered products (promotion page, existing-promotions panel,
+  delete dialog) loads one server-filtered page of up to 100 products. The seed has about 10 per
+  category; a much larger catalogue would need paging there.
 - Product filters live in Redux, not in the URL. They survive in-app navigation but not a page
   refresh or a shared link.
-- The "already on this target" panel and the "Scheduled from" tag use a client-side copy of the
+- The "already on this target" panel and the "Next: <promotion>" hint in the product list use a client-side copy of the
   API's targeting rule (product ids or category). They only inform the user. The API's 409 response
   still decides whether a promotion conflicts.
 - Conflict messages are shown exactly as the API returns them (one line per product). They are not
