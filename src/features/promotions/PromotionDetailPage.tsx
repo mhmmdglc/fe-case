@@ -156,7 +156,7 @@ export function PromotionDetailPage() {
           loading={productsLoading}
           pagination={false}
           onRow={(product) => ({
-            onClick: () => navigate(`/products/${product.id}`),
+            onClick: () => navigate(`/products/${encodeURIComponent(product.id)}`),
             className: "clickable-row",
           })}
         />

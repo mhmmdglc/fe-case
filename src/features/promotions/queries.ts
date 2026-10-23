@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { api } from "../../api/endpoints";
 import { queryKeys } from "../../api/queryKeys";
 import type { PreviewRequest } from "../../api/types";
@@ -68,11 +68,16 @@ export function usePromotion(id: string) {
   });
 }
 
-/** Keyed by the full request: a late response can only land on its own key. */
+/**
+ * Keyed by the full request: a late response can only land on its own key. The previous
+ * result stays as placeholder while a new request loads, so the preview dims instead of
+ * flashing a spinner.
+ */
 export function usePromotionPreview(request: PreviewRequest | null) {
   return useQuery({
     queryKey: request ? queryKeys.promotionPreview(request) : [...queryKeys.promotions, "preview", null],
     queryFn: ({ signal }) => api.previewPromotion(request as PreviewRequest, signal),
     enabled: request !== null,
+    placeholderData: keepPreviousData,
   });
 }

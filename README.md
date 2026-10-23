@@ -109,9 +109,10 @@ src/
 **Mock API reconnect**
 - A browser can stop an idle service worker; this happens especially in background tabs, where
   MSW's keep-alive timer is throttled. The restarted worker forgets that this page enabled mocking.
-  /api requests then go to the real network and fail ("Failed to fetch", or the dev server's
-  index.html).
-- The API client treats a network failure or an HTML response as "API not reached". It then
+  /api requests then go to the real network and fail ("Failed to fetch", the dev server's
+  index.html for GET, or a 404 without a content type for POST/DELETE).
+- The API client treats a network failure, or any non-204 response that is not JSON, as "API not
+  reached". It then
   re-attaches MSW (`worker.stop()` + `worker.start()`, `app/mockApi.ts`) and retries the request
   once.
 - This only happens in mock mode; with a real backend the error is shown directly. The in-memory

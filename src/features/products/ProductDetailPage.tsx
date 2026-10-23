@@ -169,7 +169,7 @@ export function ProductDetailPage() {
               dataSource={p.allPromotions}
               pagination={false}
               onRow={(promo) => ({
-                onClick: () => navigate(`/promotions/${promo.id}`),
+                onClick: () => navigate(`/promotions/${encodeURIComponent(promo.id)}`),
                 className: "clickable-row",
               })}
               locale={{ emptyText: "This product has never been on promotion." }}

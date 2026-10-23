@@ -19,6 +19,15 @@ Object.defineProperty(window, "matchMedia", {
 
 Element.prototype.scrollIntoView = () => {};
 
+// No-op ResizeObserver; the Ant Design Select popup needs it.
+if (typeof globalThis.ResizeObserver === "undefined") {
+  globalThis.ResizeObserver = class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  } as unknown as typeof ResizeObserver;
+}
+
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 beforeEach(() => resetMockDb());
 afterEach(() => {

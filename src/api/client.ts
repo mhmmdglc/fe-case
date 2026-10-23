@@ -48,8 +48,8 @@ async function readBody(response: Response): Promise<unknown> {
 let onUnreachable: (() => Promise<void>) | null = null;
 
 /**
- * Called when a request never reached the API (network failure, or an HTML page where JSON
- * was expected). The request is then retried once. In mock mode this re-attaches MSW
+ * Called when a request never reached the API (network failure, or a non-JSON response where
+ * JSON was expected). The request is then retried once. In mock mode this re-attaches MSW
  * (see app/mockApi.ts); without a handler the error is reported right away.
  */
 export function setUnreachableApiHandler(handler: (() => Promise<void>) | null) {
@@ -65,8 +65,10 @@ async function send(url: URL, init: RequestInit): Promise<Response | null> {
     if (isAbortError(error)) throw error;
     return null;
   }
-  // The API only answers JSON; an HTML page means the request bypassed it (e.g. SPA fallback).
-  return response.headers.get("content-type")?.includes("text/html") ? null : response;
+  // The API answers JSON or a bodiless 204. Anything else means the request bypassed it:
+  // GET gets the SPA fallback (text/html), POST/DELETE a 404 with no content type.
+  if (response.status === 204) return response;
+  return response.headers.get("content-type")?.includes("application/json") ? response : null;
 }
 
 export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {

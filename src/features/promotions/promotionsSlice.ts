@@ -36,7 +36,10 @@ const promotionsSlice = createSlice({
       state.loaded = true;
     },
     promotionCreated(state, action: PayloadAction<PromotionWithStatus>) {
-      state.items.push(withoutStatus(action.payload));
+      // A list sync can land between the save and onSuccess and already contain it.
+      if (!state.items.some((p) => p.id === action.payload.id)) {
+        state.items.push(withoutStatus(action.payload));
+      }
       state.revision += 1;
     },
     promotionDeleted(state, action: PayloadAction<string>) {

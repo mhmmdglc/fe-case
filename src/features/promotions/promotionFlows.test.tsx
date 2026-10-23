@@ -3,12 +3,16 @@ import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { describe, expect, it } from "vitest";
 import { ApiError } from "../../api/client";
+import { api } from "../../api/endpoints";
 import { queryKeys } from "../../api/queryKeys";
+import type { PromotionListItem } from "../../api/types";
+import { makeStore } from "../../app/store";
 import { emptyPromotionForm, type PromotionFormValues } from "../../domain/promotionForm";
 import { server } from "../../test/server";
 import { createWrapper } from "../../test/utils";
 import { PromotionForm } from "./PromotionForm";
-import { useCreatePromotion, usePromotionsQuery } from "./queries";
+import { promotionsSynced } from "./promotionsSlice";
+import { useCreatePromotion, useDeletePromotion, usePromotionsQuery } from "./queries";
 
 // "today" is frozen at 2026-06-15 (see test/freezeDate.ts).
 const accessoriesPayload = {
@@ -32,12 +36,57 @@ const topsForm: PromotionFormValues = {
   targetCategory: "tops",
 };
 
-function renderPromotionHooks() {
-  const { Wrapper, store, queryClient } = createWrapper();
-  const hook = renderHook(() => ({ list: usePromotionsQuery(), create: useCreatePromotion() }), {
-    wrapper: Wrapper,
-  });
+function renderPromotionHooks(store = makeStore()) {
+  const { Wrapper, queryClient } = createWrapper(store);
+  const hook = renderHook(
+    () => ({ list: usePromotionsQuery(), create: useCreatePromotion(), remove: useDeletePromotion() }),
+    { wrapper: Wrapper }
+  );
   return { ...hook, store, queryClient };
+}
+
+type Deferred = { promise: Promise<void>; resolve: () => void };
+function deferred(): Deferred {
+  let resolve!: () => void;
+  const promise = new Promise<void>((r) => (resolve = r));
+  return { promise, resolve };
+}
+
+/**
+ * Makes the next GET /api/promotions wait until `release` is resolved, then answer with
+ * `staleList` (captured from the real handler before the mutation). `started` resolves
+ * once the request has reached the server, i.e. the queryFn is past reading the revision.
+ */
+function deferNextListResponse(staleList: PromotionListItem[]) {
+  const started = deferred();
+  const release = deferred();
+  const answered = deferred();
+  server.use(
+    http.get(
+      "/api/promotions",
+      async () => {
+        started.resolve();
+        await release.promise;
+        answered.resolve();
+        return HttpResponse.json(staleList);
+      },
+      { once: true }
+    )
+  );
+  return { started: started.promise, release: release.resolve, answered: answered.promise };
+}
+
+/** Records every promotionsSynced the store receives (what the queryFn hands to Redux). */
+function recordSyncs(store: ReturnType<typeof makeStore>) {
+  const syncs: { revision: number; ids: string[] }[] = [];
+  const original = store.dispatch;
+  store.dispatch = ((action: Parameters<typeof original>[0]) => {
+    if (promotionsSynced.match(action)) {
+      syncs.push({ revision: action.payload.revision, ids: action.payload.items.map((p) => p.id) });
+    }
+    return original(action);
+  }) as typeof original;
+  return syncs;
 }
 
 describe("creating a promotion (Redux + query sync)", () => {
@@ -79,6 +128,113 @@ describe("creating a promotion (Redux + query sync)", () => {
     expect(error).toBeInstanceOf(ApiError);
     expect((error as ApiError).status).toBe(409);
     expect(store.getState().promotions).toEqual(before);
+  });
+});
+
+describe("stale list guard (list request in flight during a create)", () => {
+  it("keeps the created promotion when a list response that started before the create arrives late", async () => {
+    // Two component trees share one Redux store: tree B's list request is not cancelled by
+    // tree A's post-create invalidation, so its stale response really reaches the queryFn
+    // and promotionsSynced. Only the revision captured before the await can reject it.
+    const store = makeStore();
+    const syncs = recordSyncs(store);
+    const { result } = renderPromotionHooks(store);
+    const other = createWrapper(store);
+    renderHook(() => usePromotionsQuery(), { wrapper: other.Wrapper });
+    await waitFor(() => expect(store.getState().promotions.loaded).toBe(true));
+    await waitFor(() => expect(other.queryClient.getQueryState(queryKeys.promotionList)?.status).toBe("success"));
+
+    const staleList = await api.getPromotions();
+    expect(staleList).toHaveLength(7);
+    const pending = deferNextListResponse(staleList);
+    void other.queryClient.refetchQueries({ queryKey: queryKeys.promotionList });
+    await pending.started;
+
+    const created = await act(() => result.current.create.mutateAsync(accessoriesPayload));
+    expect(store.getState().promotions.revision).toBe(1);
+    // Tree A's fresh refetch (started after the create) lands first and is accepted.
+    await waitFor(() =>
+      expect(store.getState().promotions.items.find((p) => p.id === created.id)?.affectedProductCount).toBe(11)
+    );
+
+    const syncsBeforeRelease = syncs.length;
+    pending.release();
+    await pending.answered;
+    // The stale 7-item list (revision 0) is handed to Redux …
+    await waitFor(() =>
+      expect(syncs.slice(syncsBeforeRelease)).toContainEqual({ revision: 0, ids: staleList.map((p) => p.id) })
+    );
+    // … and dropped: the created promotion is still there.
+    const state = store.getState().promotions;
+    expect(state.items.map((p) => p.id)).toContain(created.id);
+    expect(state.items).toHaveLength(8);
+  });
+
+  it("single tree: a list request in flight during the create never removes the created promotion", async () => {
+    const store = makeStore();
+    const { result, queryClient } = renderPromotionHooks(store);
+    await waitFor(() => expect(store.getState().promotions.loaded).toBe(true));
+
+    const staleList = await api.getPromotions();
+    const pending = deferNextListResponse(staleList);
+    void queryClient.refetchQueries({ queryKey: queryKeys.promotionList });
+    await pending.started;
+
+    const created = await act(() => result.current.create.mutateAsync(accessoriesPayload));
+    expect(store.getState().promotions.items.map((p) => p.id)).toContain(created.id);
+
+    pending.release();
+    await pending.answered;
+    // The refetch after the create eventually lands with the created promotion in it.
+    await waitFor(() =>
+      expect(store.getState().promotions.items.find((p) => p.id === created.id)?.affectedProductCount).toBe(11)
+    );
+    expect(store.getState().promotions.items).toHaveLength(8);
+    await waitFor(() => expect(queryClient.isFetching({ queryKey: queryKeys.promotionList })).toBe(0));
+    expect(store.getState().promotions.items.map((p) => p.id)).toContain(created.id);
+    expect(store.getState().promotions.revision).toBe(1);
+  });
+});
+
+describe("deleting a promotion", () => {
+  it("removes it from Redux, bumps the revision and drops cached inactive product details", async () => {
+    const { result, store, queryClient } = renderPromotionHooks();
+    await waitFor(() => expect(store.getState().promotions.loaded).toBe(true));
+    expect(store.getState().promotions.items.map((p) => p.id)).toContain("promo-001");
+    const revisionBefore = store.getState().promotions.revision;
+    queryClient.setQueryData(queryKeys.productDetail("p-001"), { stale: true });
+
+    await expect(act(() => result.current.remove.mutateAsync("promo-001"))).resolves.toBeUndefined();
+
+    const state = store.getState().promotions;
+    expect(state.items.map((p) => p.id)).not.toContain("promo-001");
+    expect(state.items).toHaveLength(6);
+    expect(state.revision).toBe(revisionBefore + 1);
+    expect(queryClient.getQueryData(queryKeys.productDetail("p-001"))).toBeUndefined();
+    // The refetch that follows agrees with the API.
+    await waitFor(() => expect(queryClient.isFetching({ queryKey: queryKeys.promotionList })).toBe(0));
+    expect(store.getState().promotions.items.map((p) => p.id)).not.toContain("promo-001");
+  });
+
+  it("leaves Redux unchanged when the API answers 404", async () => {
+    const { result, store, queryClient } = renderPromotionHooks();
+    await waitFor(() => expect(store.getState().promotions.loaded).toBe(true));
+    server.use(
+      http.delete("/api/promotions/promo-001", () =>
+        HttpResponse.json({ error: "Promotion not found" }, { status: 404 })
+      )
+    );
+    queryClient.setQueryData(queryKeys.productDetail("p-001"), { stale: true });
+    const before = store.getState().promotions;
+
+    const error = await act(() =>
+      result.current.remove.mutateAsync("promo-001").then(() => null, (e: unknown) => e)
+    );
+
+    expect(error).toBeInstanceOf(ApiError);
+    expect((error as ApiError).status).toBe(404);
+    expect(store.getState().promotions).toEqual(before);
+    expect(queryClient.getQueryData(queryKeys.productDetail("p-001"))).toEqual({ stale: true });
   });
 });
 
@@ -179,5 +335,40 @@ describe("PromotionForm", () => {
     expect(
       within(panel).getByText("Single-product promotion on: Midi Wrap Dress, Floral Maxi Dress, Linen Shirt Dress")
     ).toBeTruthy();
+  });
+
+  it("clears the conflict alert when the target changes, keeps it when only the name changes", async () => {
+    const { Wrapper } = createWrapper();
+    render(<PromotionForm initialValues={topsForm} />, { wrapper: Wrapper });
+
+    await userEvent.click(screen.getByRole("button", { name: /create promotion/i }));
+    expect(await screen.findByText(/overlaps existing promotions/i)).toBeTruthy();
+
+    await userEvent.type(screen.getByLabelText("Name"), " v2");
+    expect((screen.getByLabelText("Name") as HTMLInputElement).value).toBe("Extra Tops Deal v2");
+    expect(screen.getByText(/overlaps existing promotions/i)).toBeTruthy();
+
+    await userEvent.click(screen.getByText("Specific products"));
+    await waitFor(() => expect(screen.queryByText(/overlaps existing promotions/i)).toBeNull());
+  });
+
+  it("clears the conflict alert when the end date changes", async () => {
+    const { Wrapper } = createWrapper();
+    render(<PromotionForm initialValues={topsForm} />, { wrapper: Wrapper });
+
+    await userEvent.click(screen.getByRole("button", { name: /create promotion/i }));
+    expect(await screen.findByText(/overlaps existing promotions/i)).toBeTruthy();
+
+    // Pick 2026-06-21 in the End date calendar (the form value is 2026-06-20).
+    await userEvent.click(screen.getByLabelText("End date"));
+    const cell = await waitFor(() => {
+      const td = document.querySelector<HTMLElement>('.ant-picker-dropdown td[title="2026-06-21"]');
+      expect(td).not.toBeNull();
+      return td!;
+    });
+    await userEvent.click(cell);
+
+    await waitFor(() => expect(screen.queryByText(/overlaps existing promotions/i)).toBeNull());
+    expect((screen.getByLabelText("End date") as HTMLInputElement).value).toContain("21");
   });
 });

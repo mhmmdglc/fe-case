@@ -123,4 +123,58 @@ describe("recovering when a request bypasses the API", () => {
 
     await expect(api.getCategories()).rejects.toMatchObject({ status: 0 });
   });
+
+  it("treats a bodiless 404 on POST as unreachable, reconnects once and the retry creates (201)", async () => {
+    let reconnects = 0;
+    setUnreachableApiHandler(async () => {
+      reconnects += 1;
+    });
+    const statuses: number[] = [];
+    server.events.on("response:mocked", ({ request, response }) => {
+      if (request.method === "POST") statuses.push(response.status);
+    });
+    server.use(http.post("/api/promotions", () => new HttpResponse(null, { status: 404 }), { once: true }));
+
+    const created = await api.createPromotion({ ...base, targetType: "category", targetCategory: "accessories" });
+    server.events.removeAllListeners();
+
+    expect(created).toMatchObject({ name: "Test promotion", targetCategory: "accessories" });
+    expect(reconnects).toBe(1);
+    expect(statuses).toEqual([404, 201]);
+  });
+
+  it("treats a bodiless 404 on DELETE as unreachable, reconnects once and the retry deletes (204)", async () => {
+    let reconnects = 0;
+    setUnreachableApiHandler(async () => {
+      reconnects += 1;
+    });
+    const statuses: number[] = [];
+    server.events.on("response:mocked", ({ request, response }) => {
+      if (request.method === "DELETE") statuses.push(response.status);
+    });
+    server.use(http.delete("/api/promotions/:id", () => new HttpResponse(null, { status: 404 }), { once: true }));
+
+    await expect(api.deletePromotion("promo-001")).resolves.toBeUndefined();
+    server.events.removeAllListeners();
+
+    expect(reconnects).toBe(1);
+    expect(statuses).toEqual([404, 204]);
+    await expect(api.getPromotion("promo-001")).rejects.toMatchObject({ status: 404 });
+  });
+
+  it("does not reconnect on a real JSON 404 and rejects with its message", async () => {
+    let reconnects = 0;
+    setUnreachableApiHandler(async () => {
+      reconnects += 1;
+    });
+    server.use(
+      http.delete("/api/promotions/:id", () => HttpResponse.json({ error: "Promotion not found" }, { status: 404 }))
+    );
+
+    await expect(api.deletePromotion("promo-001")).rejects.toMatchObject({
+      status: 404,
+      message: "Promotion not found",
+    });
+    expect(reconnects).toBe(0);
+  });
 });

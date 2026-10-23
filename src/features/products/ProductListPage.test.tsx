@@ -19,16 +19,6 @@ const SHIRT_PRODUCTS = [
   "Fine Knit Polo Shirt",
 ];
 
-// jsdom lacks ResizeObserver, which the Ant Design Select popup needs. Stubbed locally
-// because the shared test setup is out of scope for this file.
-if (typeof globalThis.ResizeObserver === "undefined") {
-  globalThis.ResizeObserver = class {
-    observe() {}
-    unobserve() {}
-    disconnect() {}
-  } as unknown as typeof ResizeObserver;
-}
-
 const tl = (n: number) => new Intl.NumberFormat("tr-TR", { style: "currency", currency: "TRY" }).format(n);
 
 let productRequests: URL[] = [];

@@ -65,4 +65,12 @@ describe("promotions reducer", () => {
     expect(state.items.map((p) => p.id)).toEqual(["promo-001", "promo-new"]);
     expect(state.items[1].affectedProductCount).toBe(8);
   });
+
+  it("does not duplicate a created promotion whose id is already stored, but still bumps the revision", () => {
+    // The fresh list (containing the new promotion) can land before promotionCreated runs.
+    const synced = reducer(initial, promotionsSynced({ items: [listItem, { ...created, affectedProductCount: 8 }], revision: 0 }));
+    const state = reducer(synced, promotionCreated(created));
+    expect(state.items.map((p) => p.id)).toEqual(["promo-001", "promo-new"]);
+    expect(state.revision).toBe(synced.revision + 1);
+  });
 });

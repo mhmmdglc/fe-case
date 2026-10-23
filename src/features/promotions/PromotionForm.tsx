@@ -32,6 +32,8 @@ const toDayjs = (date: string | null) => (date ? dayjs(date, DATE_FORMAT) : null
 // Format the picked calendar day directly; toISOString() could shift it to the previous day.
 const fromDayjs = (date: dayjs.Dayjs | null) => (date ? date.format(DATE_FORMAT) : null);
 
+const conflictFields: (keyof PromotionFormValues)[] = ["targetType", "targetCategory", "targetProducts", "startDate", "endDate"];
+
 export function PromotionForm({ initialValues = emptyPromotionForm, onCreated, renderAside }: Props) {
   const [values, setValues] = useState(initialValues);
   const [submitted, setSubmitted] = useState(false);
@@ -66,6 +68,8 @@ export function PromotionForm({ initialValues = emptyPromotionForm, onCreated, r
       delete next[key as FormField];
       return next;
     });
+    // A 409 describes the submitted target and dates; it is stale once either changes.
+    if (conflictFields.includes(key)) setConflicts((prev) => (prev.length > 0 ? [] : prev));
   }
 
   async function handleSubmit() {

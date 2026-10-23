@@ -1,4 +1,5 @@
 import { Alert, Card, Empty, Spin, Table, Typography } from "antd";
+import { useMemo } from "react";
 import type { PreviewItem } from "../../api/types";
 import { PriceCell, QueryErrorAlert } from "../../components/common";
 import { buildPreviewRequest, type PromotionFormValues } from "../../domain/promotionForm";
@@ -8,7 +9,8 @@ import { usePromotionPreview } from "./queries";
 const sameRequest = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
 export function PromotionPreview({ values }: { values: PromotionFormValues }) {
-  const request = buildPreviewRequest(values);
+  // Memoized: the debounce restarts whenever the request reference changes.
+  const request = useMemo(() => buildPreviewRequest(values), [values]);
   const debouncedRequest = useDebouncedValue(request, 400);
   const preview = usePromotionPreview(debouncedRequest);
 

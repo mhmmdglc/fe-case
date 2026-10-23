@@ -18,7 +18,7 @@ export function PromotionStatusTag({ status }: { status: PromotionStatus }) {
 /** Link to a promotion's detail page; usable inside clickable table rows. */
 export function PromotionLink({ id, children }: { id: string; children: ReactNode }) {
   return (
-    <Link to={`/promotions/${id}`} onClick={(e) => e.stopPropagation()}>
+    <Link to={`/promotions/${encodeURIComponent(id)}`} onClick={(e) => e.stopPropagation()}>
       {children}
     </Link>
   );
@@ -26,7 +26,7 @@ export function PromotionLink({ id, children }: { id: string; children: ReactNod
 
 export function ProductLink({ id, children }: { id: string; children: ReactNode }) {
   return (
-    <Link to={`/products/${id}`} onClick={(e) => e.stopPropagation()}>
+    <Link to={`/products/${encodeURIComponent(id)}`} onClick={(e) => e.stopPropagation()}>
       {children}
     </Link>
   );

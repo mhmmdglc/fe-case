@@ -1,4 +1,5 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
+import { Profiler } from "react";
 import { delay, http } from "msw";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { emptyPromotionForm, type PromotionFormValues } from "../../domain/promotionForm";
@@ -190,5 +191,78 @@ describe("PromotionPreview: values change", () => {
     await waitFor(() => expect(screen.queryByText("Updating preview…")).toBeNull());
     expect(screen.getByText(tl(124.95))).toBeTruthy();
     expect(screen.queryByText(tl(224.91))).toBeNull();
+  });
+});
+
+describe("PromotionPreview: rendering stability", () => {
+  it("does not re-render periodically while the form is valid and unchanged", async () => {
+    let commits = 0;
+    const onRender = () => {
+      commits += 1;
+    };
+    const { Wrapper } = createWrapper();
+    render(
+      <Profiler id="preview" onRender={onRender}>
+        <PromotionPreview values={accessories10} />
+      </Profiler>,
+      { wrapper: Wrapper }
+    );
+    await waitForSettled(document.body, tl(224.91));
+
+    const settledCommits = commits;
+    // Deliberate, short observation window: nothing changes, so nothing should commit.
+    await act(() => new Promise((resolve) => setTimeout(resolve, 1500)));
+    expect(commits).toBe(settledCommits);
+    expect(previewBodies).toHaveLength(1);
+  });
+
+  it("keeps the previous result visible (dimmed) until the result for the new value arrives", async () => {
+    let releaseNew!: () => void;
+    const newGate = new Promise<void>((r) => (releaseNew = r));
+    let newStarted!: () => void;
+    const newRequested = new Promise<void>((r) => (newStarted = r));
+    // Hold only the 50% request, then fall through to the real handler.
+    server.use(
+      http.post("/api/promotions/preview", async ({ request }) => {
+        const body = (await request.clone().json()) as { value: number };
+        if (body.value === 50) {
+          newStarted();
+          await newGate;
+        }
+        return undefined;
+      })
+    );
+
+    const OLD = tl(224.91);
+    const NEW = tl(124.95);
+    const { Wrapper } = createWrapper();
+    const { rerender } = render(<PromotionPreview values={accessories10} />, { wrapper: Wrapper });
+    await waitForSettled(document.body, OLD);
+
+    // From here on, every DOM change must leave the old or the new price on screen.
+    const blankMoments: string[] = [];
+    const observer = new MutationObserver(() => {
+      const text = document.body.textContent ?? "";
+      if (!text.includes(OLD) && !text.includes(NEW)) blankMoments.push(text.slice(0, 120));
+    });
+    observer.observe(document.body, { childList: true, subtree: true, characterData: true });
+
+    try {
+      rerender(<PromotionPreview values={{ ...accessories10, value: 50 }} />);
+      expect(screen.getByText(OLD)).toBeTruthy();
+
+      await newRequested;
+      await waitFor(() => expect(screen.getByText("Updating preview…")).toBeTruthy());
+      expect(screen.getByText(OLD)).toBeTruthy();
+      expect(screen.queryByText(NEW)).toBeNull();
+
+      releaseNew();
+      await waitForSettled(document.body, NEW);
+      expect(screen.queryByText(OLD)).toBeNull();
+    } finally {
+      observer.disconnect();
+      releaseNew();
+    }
+    expect(blankMoments).toEqual([]);
   });
 });

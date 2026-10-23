@@ -174,7 +174,7 @@ export function ProductListPage() {
             columns={columns}
             dataSource={data?.products ?? []}
             onRow={(product) => ({
-              onClick: () => navigate(`/products/${product.id}`),
+              onClick: () => navigate(`/products/${encodeURIComponent(product.id)}`),
               className: "clickable-row",
             })}
             // Previous page stays visible while the next one loads, marked as loading.
