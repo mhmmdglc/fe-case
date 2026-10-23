@@ -1,8 +1,9 @@
 # AI Appendix
 
 This file covers what the case asks for: the AI tools and models used, the two prompts that shaped
-the architecture, and the AI errors I identified and corrected. Every prompt below is quoted
-verbatim. Every error and check described here happened during the project.
+the architecture, and the AI errors I identified and corrected. Every prompt is given in English
+translation, with the original Turkish text kept verbatim. Every error and check described here
+happened during the project.
 
 ---
 
@@ -70,11 +71,28 @@ verbatim. Every error and check described here happened during the project.
 
 ## 2. The two prompts that shaped the architecture
 
+I wrote my prompts in Turkish. Each one is shown in English translation first; the original text
+is kept verbatim in the collapsible block below it.
+
 ### Prompt 1: Codex's cross-check of the architecture plan
 
-This message carried Codex's review (GPT Astra 6.0) of Claude's first plan. It was followed by a longer draft
-implementation prompt, which is not repeated here. The text is quoted verbatim up to that draft,
-with two links to local file paths removed.
+This message carried Codex's review (GPT Astra 6.0) of Claude's first plan. It was followed by a
+longer draft implementation prompt, which is not repeated here. Both the translation and the
+original stop before that draft; two links to local file paths were removed.
+
+> I'm sending you my review now. Before we start, can you evaluate it: is it correct, is anything missing?
+>
+> The main direction of the plan is right; there is no need to rewrite it. But before implementation I would clarify a few important points. I compared the PDF with the existing code; I made no changes to the project.
+> These in particular should be fixed:
+>
+> * Redux–TanStack Query split: "update Redux after create/delete" is not enough. Promotions must also stay in sync on the first load and whenever data is refetched. The PDF asks for promotion management with Redux and for TanStack Query.
+> * Keeping prices current: when a promotion changes, product details and promotion queries must be refreshed too, not only the product list.
+> * API error format: the `422` response is a `string[]`, not a field–message object. Messages should be mapped to fields, and unmapped messages must still be shown. A delete returns `204`, so `response.json()` cannot be called on every successful response.
+> * A small mistake in the preview analysis: `targetProductIds: []` does not return all products; it returns an empty result. Leaving the field out entirely is what returns all products. A missing category field causes a similar problem.
+> * Delivery and security: seeing no suspicious behaviour in the sources does not prove the dependencies are safe. Also, MSW currently only starts in development mode; even if `build` succeeds, the API will not work under `preview`.
+
+<details>
+<summary>Original prompt (Turkish, verbatim)</summary>
 
 > şimdi sana yorumumu atıyorum. ona göre başlamadan attıgım yorumu değerlendirimisin. dogru mudur eksi kyeri var mıdır
 >
@@ -87,6 +105,8 @@ with two links to local file paths removed.
 > * Preview tespitinde küçük hata: `targetProductIds: []` bütün ürünleri döndürmüyor; boş sonuç döndürüyor. Alanın hiç gönderilmemesi bütün ürünlerin dönmesine yol açıyor. Kategori alanı eksik olduğunda da benzer sorun var.
 > * Teslim ve güvenlik: Kaynaklarda şüpheli davranış görülmemesi, bağımlılıkların güvenli olduğunun kanıtı değil. Ayrıca mevcut MSW yalnızca geliştirme modunda açılıyor; `build` başarılı olsa bile `preview` altında API çalışmayacak.
 
+</details>
+
 **Why it mattered:**
 - It fixed the API layer: one typed `ApiError` model that reads 422 `errors` and 409 `conflicts`
   as `string[]`, and handles the bodiless 204 from DELETE.
@@ -96,6 +116,26 @@ with two links to local file paths removed.
 - It led to a demo mode, because the mock API only runs in development.
 
 ### Prompt 2: final architecture decisions before implementation
+
+> I accept your evaluation. Let's move on to implementation based on the previous plan and the corrections.
+>
+> Final decisions:
+> - Leave URL synchronisation out of the first version; keep the filters in Redux.
+> - Manage Redux–Query synchronisation in one place. Make sure an old list response cannot undo the result of a successful mutation.
+> - Use correct query keys and standard TanStack Query mechanisms for the product list; do not build a custom request-ordering mechanism. If you use keepPreviousData, show a loading state while the old data is displayed.
+> - Separately check that old preview results never look like the result for the current form.
+> - Do not reject a fixed discount that exceeds the product price; clamp the computed price at 0.
+> - Make date tests deterministic; reset the mutable mock database in integration tests.
+> - Add the worker file to the repo and document the run steps in the README.
+> - Use one shared, tested function based on UTC for the status.
+> - Complete the mandatory unit tests; focus integration tests on a successful create and the 409/422 flows.
+> - Finish the mandatory screens first; then add the live preview bonus.
+> - Record the real prompts and the real errors caught for AI_APPENDIX.md throughout development.
+>
+> Instead of another long evaluation round, state a short implementation order and start coding. Aim for a working, simple solution that I can explain in an interview.
+
+<details>
+<summary>Original prompt (Turkish, verbatim)</summary>
 
 > Değerlendirmeni kabul ediyorum. Önceki plan ve düzeltmeler üzerinden uygulamaya geçelim.
 >
@@ -113,6 +153,8 @@ with two links to local file paths removed.
 > - AI_APPENDIX.md için gerçek promptları ve yakalanan gerçek hataları geliştirme boyunca kaydet.
 >
 > Yeni bir uzun değerlendirme turu yerine kısa uygulama sırasını belirtip kodlamaya başla. Çalışan, sade ve mülakatta açıklanabilir bir çözüm hedefle.
+
+</details>
 
 **Why it mattered:** these points became the core design.
 - **Single sync point.** The promotion list reaches Redux only from the query function, and a
@@ -133,7 +175,212 @@ I used this prompt after the first implementation to run the independent verific
 (step 4). It shaped how the work was checked, not the architecture.
 
 <details>
-<summary>Process prompt (verbatim)</summary>
+<summary>Process prompt (English translation)</summary>
+
+```text
+We will develop this project with real subagents. As the main agent, you take the Engineering Manager / Tech Lead role. Create the specialist agents below when needed and coordinate their work.
+
+The goal is not to run many agents; it is to produce a simple and correct solution by keeping requirements analysis, implementation and verification separate.
+
+First review the case document under docs, the README and the existing source code. Pass the user's existing decisions and the project instructions on to every agent.
+
+AGENT ROLES
+
+1. ENGINEERING MANAGER / TECH LEAD — Main agent
+
+Responsibilities:
+- Owns the user's expectations and the case requirements in the end.
+- Combines the specialists' findings and makes the architectural decisions.
+- Splits the work into small, verifiable tasks.
+- Sets dependencies, file ownership and the limits of parallel work.
+- Resolves disagreements between agents with evidence from the document, the code and the tests.
+- Manages integration of changes and the delivery checks.
+- Reports important decisions, real findings and remaining work to the user.
+
+Limits of authority:
+- Does not drop mandatory requirements on its own.
+- Does not grow the scope without a reason.
+- Does not turn every reviewer suggestion into a development task automatically.
+- Does not accept an agent saying "done" as enough on its own.
+
+Outputs:
+- A short architecture decision record.
+- A task list and assignments.
+- A delivery summary based on verification results.
+
+
+2. REQUIREMENTS & API ANALYST
+
+Responsibilities:
+- Extracts the mandatory requirements and bonuses from the PDF.
+- Compares the README with the real MSW handler behaviour.
+- Documents the endpoints' request/response shapes, error codes and edge cases.
+- Reports ambiguities and differences between sources to the Manager.
+- Turns every requirement into an observable acceptance criterion.
+
+Topics to examine in particular:
+- Where Redux Toolkit and TanStack Query must be used.
+- Differences between the product list and product detail responses.
+- 409/422 error structures and the empty 204 response.
+- Date boundaries, scheduled conflicts and price calculation rules.
+- The difference in preview behaviour between a missing target and an empty target.
+- Separating mandatory features from optional ones.
+
+Limits of authority:
+- Does not change production code.
+- Does not present its own product preferences as document requirements.
+- Does not automatically treat the mock API's behaviour as ideal or secure.
+
+Output:
+Requirement → source → acceptance criterion → related API behaviour mapping.
+Kept short and concrete, only as much as development needs.
+
+
+3. FRONTEND ENGINEER
+
+Responsibilities:
+- Implements the tasks approved by the Manager.
+- Builds the React/TypeScript screens, shared components and SCSS styles.
+- Sets up the API layer, Query hooks, Redux slices and routing.
+- Completes loading, empty, error, validation and success states.
+- Writes type-safe code that follows the API contract.
+- Runs the basic checks appropriate for the behaviour it changed.
+- Fixes problems verified by the Tester and the Reviewer.
+
+Topics to pay particular attention to:
+- Managing Redux–Query synchronisation in one place.
+- Keeping the product list and details current after mutations.
+- Server-side filtering and pagination.
+- Keeping form values when errors occur.
+- Not sending a preview for invalid targets.
+- A consistent, readable desktop UI on Ant Design.
+
+Limits of authority:
+- Tells the Manager before going outside its assigned file scope.
+- Does not change expected behaviour or the API contract to make a test pass.
+- Does not change the mock handlers or seed data to make implementation easier.
+- Does not add unnecessary general-purpose infrastructure or abstractions.
+
+Handoff output:
+- Changed behaviour and files.
+- Checks it ran.
+- Known limitations.
+- Scenarios the Tester should verify.
+
+
+4. QA / TEST ENGINEER — Independent behaviour verifier
+
+Responsibilities:
+- Designs test scenarios from the acceptance criteria before looking at the developer's code.
+- Writes meaningful unit tests for the business logic.
+- Verifies critical API/UI flows with suitable integration tests.
+- Checks user flows in the browser where possible.
+- Reports bugs with reproducible steps.
+- After a fix, re-runs the related scenario and the needed regression checks.
+
+Topics to verify in particular:
+- UTC date boundaries and discount calculations.
+- Form and error message behaviour after 409/422.
+- Consistency of Redux and on-screen data after a successful mutation.
+- The first search being "shirt" and the search being clearable.
+- Filter and pagination parameters being sent to the API correctly.
+- Preview behaving correctly when the target changes or is cleared.
+
+Test discipline:
+- Makes dates deterministic.
+- Resets the mutable mock data between tests.
+- Does not use arbitrary waits for async work.
+- Does not derive test expectations only from the current implementation.
+
+Limits of authority:
+- Does not fix production code itself; hands the finding to the developer.
+- Does not remove assertions to hide a failing test.
+- Does not count a test or browser check that was not run as passed.
+
+Finding output:
+- Scenario and reproduction steps.
+- Expected / actual behaviour.
+- Evidence and user impact.
+- Verification result after the fix.
+
+
+5. CODE REVIEWER — Independent code and security reviewer
+
+Responsibilities:
+- Reads the relevant code instead of relying on the developer's description.
+- Reviews requirement compliance, data flow, maintainability and error handling.
+- For security, evaluates user input, rendering of API text,
+  use of secrets and dependency findings.
+- Checks whether the tests really cover the critical behaviour.
+- Spots unnecessary complexity and duplicated state management.
+
+Limits of authority:
+- Does not rewrite the change it reviews.
+- Does not present personal code style as a required fix.
+- Does not report a hypothetical risk as a confirmed vulnerability.
+- Does not give out-of-scope assurances such as "there are no security vulnerabilities".
+
+Finding classes:
+- Blocking: a requirement violation, a wrong price, inconsistent data or
+  a proven, significant security issue.
+- Should fix: a correctness or maintainability problem with a concrete impact.
+- Optional: an improvement that does not block delivery.
+
+Each finding states the file, the reason, the condition under which it happens
+and the smallest possible fix.
+
+
+WORKING AND HANDOFF RULES
+
+- Specialist agents report to the Manager; they do not create new agents on their own.
+- Every task has a single implementation owner.
+- No two agents write to the same file at the same time.
+- QA owns the test files; the Frontend Engineer owns the production files.
+- Shared config or dependency changes are coordinated by the Manager.
+- The Analyst and the Reviewer are read-only by default.
+- Every agent receives a concrete task and the relevant context, not just a role name.
+
+Task template:
+- Task ID and goal
+- Responsible agent
+- Inputs and dependencies
+- Files it may change
+- Acceptance criteria
+- Verification method
+- Expected handoff output
+
+Task states:
+Ready → In development → Verifying → In review → Done
+
+If a bug is found, the task goes back to the developer with the evidence.
+If verification cannot be done, that is reported clearly and the task does not count as done.
+
+
+ORDER OF WORK IN THIS PROJECT
+
+1. The Analyst extracts the requirements and the API contract.
+2. The Manager sets the architecture decisions and task boundaries.
+3. The Frontend Engineer implements the first task; QA can prepare
+   independent test scenarios from the same acceptance criteria.
+4. QA verifies the behaviour and the Reviewer reviews the code.
+5. The Manager assigns the necessary fixes and combines the results.
+6. After the mandatory flows are complete, move on to the bonus preview.
+
+In this small project, do not open a separate review round for every file.
+Evaluate related changes together as meaningful tasks.
+
+Throughout the process, record the real prompts, important human decisions,
+the AI errors found and the verification evidence for AI_APPENDIX.md.
+Do not add agents or checks that were not actually run to the report.
+
+Now start the Analyst task first. Once the findings arrive, share a short
+task assignment and continue implementation within the current scope.
+```
+
+</details>
+
+<details>
+<summary>Original process prompt (Turkish, verbatim)</summary>
 
 ```text
 Bu projeyi gerçek subagent’larla geliştireceğiz. Ana agent olarak sen Engineering Manager / Tech Lead rolünü üstlen. Aşağıdaki uzman agent’ları gerektiğinde oluştur ve görevlerini koordine et.
