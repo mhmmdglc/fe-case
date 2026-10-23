@@ -45,22 +45,48 @@ async function readBody(response: Response): Promise<unknown> {
   }
 }
 
+let onUnreachable: (() => Promise<void>) | null = null;
+
+/**
+ * Called when a request never reached the API (network failure, or an HTML page where JSON
+ * was expected). The request is then retried once. In mock mode this re-attaches MSW
+ * (see app/mockApi.ts); without a handler the error is reported right away.
+ */
+export function setUnreachableApiHandler(handler: (() => Promise<void>) | null) {
+  onUnreachable = handler;
+}
+
+/** null when the request did not reach the API. */
+async function send(url: URL, init: RequestInit): Promise<Response | null> {
+  let response: Response;
+  try {
+    response = await fetch(url, init);
+  } catch (error) {
+    if (isAbortError(error)) throw error;
+    return null;
+  }
+  // The API only answers JSON; an HTML page means the request bypassed it (e.g. SPA fallback).
+  return response.headers.get("content-type")?.includes("text/html") ? null : response;
+}
+
 export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const { method = "GET", body, signal } = options;
   // Absolute URL so the same client works in the browser and in Node-based tests.
   const url = new URL(path, window.location.origin);
+  const init: RequestInit = {
+    method,
+    signal,
+    headers: body === undefined ? undefined : { "Content-Type": "application/json" },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  };
 
-  let response: Response;
-  try {
-    response = await fetch(url, {
-      method,
-      signal,
-      headers: body === undefined ? undefined : { "Content-Type": "application/json" },
-      body: body === undefined ? undefined : JSON.stringify(body),
-    });
-  } catch (error) {
-    if (isAbortError(error)) throw error;
-    throw new ApiError(0, "Could not reach the server. Check your connection and try again.");
+  let response = await send(url, init);
+  if (!response && onUnreachable) {
+    await onUnreachable();
+    response = await send(url, init);
+  }
+  if (!response) {
+    throw new ApiError(0, "Could not reach the API. Check your connection, or reload the page and try again.");
   }
 
   const payload = await readBody(response);

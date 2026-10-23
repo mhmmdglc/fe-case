@@ -1,7 +1,7 @@
 import { http, HttpResponse } from "msw";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { server } from "../test/server";
-import { ApiError } from "./client";
+import { ApiError, setUnreachableApiHandler } from "./client";
 import { api } from "./endpoints";
 import type { CreatePromotionRequest } from "./types";
 
@@ -87,5 +87,40 @@ describe("apiRequest", () => {
     await api.getProducts({ q: "shirt", category: "", promotionStatus: "all", page: 2, limit: 10 });
     server.events.removeAllListeners();
     expect(new URL(urls[0]).search).toBe("?q=shirt&page=2&limit=10");
+  });
+});
+
+describe("recovering when a request bypasses the API", () => {
+  afterEach(() => setUnreachableApiHandler(null));
+
+  it("re-attaches once and retries after a network failure", async () => {
+    let reconnects = 0;
+    setUnreachableApiHandler(async () => {
+      reconnects += 1;
+    });
+    server.use(http.get("/api/categories", () => HttpResponse.error(), { once: true }));
+
+    await expect(api.getCategories()).resolves.toContain("tops");
+    expect(reconnects).toBe(1);
+  });
+
+  it("treats an HTML page (SPA fallback) as unreachable and retries", async () => {
+    let reconnects = 0;
+    setUnreachableApiHandler(async () => {
+      reconnects += 1;
+    });
+    server.use(
+      http.get("/api/categories", () => HttpResponse.html("<!doctype html><div id=root></div>"), { once: true })
+    );
+
+    await expect(api.getCategories()).resolves.toContain("tops");
+    expect(reconnects).toBe(1);
+  });
+
+  it("reports status 0 when the retry fails too", async () => {
+    setUnreachableApiHandler(async () => {});
+    server.use(http.get("/api/categories", () => HttpResponse.error()));
+
+    await expect(api.getCategories()).rejects.toMatchObject({ status: 0 });
   });
 });

@@ -106,6 +106,17 @@ src/
 - After a change, cached product and promotion queries that are not on screen are removed, and the
   ones on screen are refetched. Navigating to another page never shows a stale effective price.
 
+**Mock API reconnect**
+- A browser can stop an idle service worker; this happens especially in background tabs, where
+  MSW's keep-alive timer is throttled. The restarted worker forgets that this page enabled mocking.
+  /api requests then go to the real network and fail ("Failed to fetch", or the dev server's
+  index.html).
+- The API client treats a network failure or an HTML response as "API not reached". It then
+  re-attaches MSW (`worker.stop()` + `worker.start()`, `app/mockApi.ts`) and retries the request
+  once.
+- This only happens in mock mode; with a real backend the error is shown directly. The in-memory
+  mock data is not reset by reconnecting.
+
 **Dates and status**
 - Status is never stored. `getPromotionStatus` derives it from the dates, with start and end days
   inclusive.
