@@ -1,119 +1,157 @@
-# modaco-case-starter
+# ModaCo – Promotion Management
 
-Starter template for the ModaCo frontend case study.
+Internal single-page app for the ModaCo merchandising team: browse the product catalog with
+effective prices, inspect a product's promotions, and create promotions with conflict detection
+and a live impact preview.
 
-Includes a fully working mock API powered by [MSW (Mock Service Worker)](https://mswjs.io/). No real backend is needed — all requests are intercepted in the browser.
+Built with React 18, TypeScript, Redux Toolkit, TanStack Query, Ant Design 6, SCSS modules and
+React Router. All data comes from the starter's MSW mock API (no real backend).
 
 ---
 
-## Getting Started
+## Getting started
+
+Requires Node.js **20.19+**.
 
 ```bash
 npm install
-npm run init:msw
 npm run dev
 ```
 
-The app runs at `http://localhost:5173`.
+The app runs at `http://localhost:5173`. The MSW worker file (`public/mockServiceWorker.js`) is
+committed, so `npm run init:msw` is only needed after upgrading `msw`.
 
-> `npm run init:msw` copies the MSW service worker file into `public/`. Run it once after install.
+| Script | What it does |
+|---|---|
+| `npm run dev` | Dev server with the mock API |
+| `npm test` | Unit and integration tests (Vitest, jsdom) |
+| `npm run typecheck` | `tsc` without emitting |
+| `npm run build` | Type-check and production build. **The mock API is not included**, so this build has no data source on its own. |
+| `npm run demo` | Production build **with** the mock API (`VITE_ENABLE_MOCKS=true`), served by `vite preview` at `http://localhost:4173` |
 
----
-
-## API Reference
-
-All requests use the `/api/` prefix.
-
-### Endpoints
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/api/products` | Paginated product list |
-| `GET` | `/api/products/:id` | Product detail + active promotion |
-| `GET` | `/api/categories` | All categories |
-| `GET` | `/api/promotions` | All promotions |
-| `GET` | `/api/promotions/:id` | Promotion detail |
-| `POST` | `/api/promotions` | Create a new promotion |
-| `POST` | `/api/promotions/preview` | Preview promotion impact *(bonus)* |
-| `DELETE` | `/api/promotions/:id` | Delete a promotion |
-
-### GET /api/products — Query Parameters
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `q` | string | `""` | Search by product name |
-| `category` | string | `""` | Filter by category |
-| `page` | number | `1` | Page number |
-| `limit` | number | `10` | Items per page |
-| `promotionStatus` | `all` \| `on_promotion` \| `no_promotion` | `all` | Filter by promotion status |
-
-### POST /api/promotions — Response Codes
-
-| Code | Meaning |
-|------|---------|
-| `201 Created` | Promotion saved successfully |
-| `409 Conflict` | Overlapping promotion detected — response includes a `conflicts` array |
-| `422 Unprocessable Entity` | Validation error — response includes an `errors` array |
+Promotions are kept in the page's memory by the mock API and reset on page refresh (by design of
+the starter).
 
 ---
 
-## Data Shapes
+## Features
 
-### Product
+**Products (`/products`)**
+- Table with name, category, SKU, base price, effective price and a promotion indicator.
+- Server-side search, category filter (from `GET /api/categories`), promotion status filter and
+  pagination (10 per page). Nothing is filtered on the client.
+- A fresh app load behaves as if "shirt" was searched. A search the user clears stays cleared for
+  the session.
 
-```ts
-{
-  id: string;
-  name: string;           // e.g. "Slim Fit Oxford Shirt"
-  sku: string;            // e.g. "TOP-SHR-001"
-  category: string;       // tops | bottoms | outerwear | dresses | knitwear | accessories
-  basePrice: number;
-  stockQuantity: number;
-}
+**Product detail (`/products/:id`)**
+- All product fields, a prominent effective price, the active promotion (or a clear message), the
+  product's promotion status (Active / Scheduled / Expired) and every promotion that targets it.
+
+**Promotions (`/promotions`)**
+- List with discount type, value, target, affected products, validity and derived status.
+- Create form in a drawer: inline validation (no browser-native validation), product or category
+  target, 422 messages mapped to fields, 409 conflict details listed while the form keeps its values.
+- Live impact preview (bonus): affected products, their new prices and conflicts, refreshed as the
+  form changes.
+- Delete with confirmation (extra; the API supports it).
+
+---
+
+## Architecture
+
+```
+src/
+  api/          fetch client (single ApiError model), endpoints, response types, query keys
+  domain/       pure business rules + tests (status, effective price, validation, payloads)
+  app/          Redux store, QueryClient
+  features/
+    products/   filters slice, product queries, list and detail pages
+    promotions/ promotions slice, promotion queries/mutations, page, form, picker, preview
+  components/   layout and small shared UI
+  styles/       SCSS tokens and globals
+  test/         MSW Node server, frozen clock, render helpers
+  mocks/        starter mock API (unchanged)
 ```
 
-### Promotion
+**Server state vs. UI state**
+- TanStack Query performs every API call and owns caching, loading and error state.
+- Redux holds the product filters (search, category, promotion status, page) and the promotion list
+  the case asks to manage with Redux Toolkit.
 
-```ts
-{
-  id: string;
-  name: string;
-  discountType: "percentage_off" | "fixed_amount_off";
-  value: number;
-  startDate: string;        // YYYY-MM-DD
-  endDate: string;          // YYYY-MM-DD
-  couponCode?: string;
-  targetType: "products" | "category";
-  targetProductIds?: string[];
-  targetCategory?: string;
-}
+**Keeping promotions in Redux in sync with the API**
+- The promotion list reaches Redux in one place: the `GET /api/promotions` query function
+  (`features/promotions/queries.ts`). Every successful fetch, the first one and each refetch,
+  replaces the stored list.
+- Create/delete update Redux only after the API confirms the change (no optimistic updates). A
+  failed mutation never reaches Redux.
+- Each successful mutation increments a `revision`. A list request remembers the revision it
+  started with, and the reducer ignores its response if a mutation succeeded in the meantime. This
+  way an older list response cannot undo a newer create or delete.
+- After a change, cached product and promotion queries that are not on screen are removed, and the
+  ones on screen are refetched. Navigating to another page never shows a stale effective price.
+
+**Dates and status**
+- Status is never stored. `getPromotionStatus` derives it from the dates, with start and end days
+  inclusive.
+- "Today" is the **UTC** calendar date, the same rule the mock API uses (`toISOString`). Otherwise
+  the UI and the API would disagree between 00:00 and 03:00 in Turkey.
+- Dates are sent as `YYYY-MM-DD` taken directly from the picked calendar day. Converting through
+  ISO could shift the date by a day.
+
+**Prices**
+- Product screens show the API's `effectivePrice`. The shared `computeEffectivePrice` (clamped at 0)
+  is used for the "price with this promotion" column on the detail page.
+- A fixed discount larger than a product's price is allowed. The resulting price is capped at 0, as
+  in the API.
+
+**Preview**
+- A preview request is only sent when the discount, both dates and a non-empty target are valid.
+  Without a target, the mock API would treat the request as covering every product.
+- Requests are debounced and keyed by their full body. While the form differs from the last
+  previewed request, the old result is dimmed and labelled "Updating preview…". When the form
+  becomes invalid, the preview is hidden. The 409 from the real create request is still handled,
+  because a preview is not a guarantee.
+
+---
+
+## Tests
+
+```bash
+npm test
 ```
 
----
+- **Unit:** status boundaries (start/end day inclusive, month/year rollover, UTC), effective price
+  (percentage, fixed, 100 %, floor at 0), form validation (required fields, whitespace name, 0 /
+  negative / NaN / Infinity values, 100 % cap, same-day end date), payload and preview building,
+  422 message mapping, filters reducer, promotions reducer (including the stale-response guard).
+- **Integration:** the real MSW handlers running in Node (`msw/node`):
+  - the three seeded conflict scenarios plus a scheduled-promotion overlap;
+  - 422 / 204 / 404 / network error handling;
+  - create → Redux + cache sync;
+  - 409 leaves Redux untouched;
+  - the form on 409 and 422 (values kept, details shown) and on success.
 
-## Seed Data
-
-The mock database contains **50 textile products** across 6 categories and **7 pre-seeded promotions**:
-
-- 3 active
-- 2 scheduled
-- 2 expired
-
-Promotions are stored in-memory and reset on page refresh. This is intentional.
-
-### Pre-seeded Conflict Scenarios
-
-These are deliberately set up to test conflict detection logic:
-
-| Scenario | Affected products | Existing active promotion |
-|----------|-------------------|--------------------------|
-| Add a promotion targeting `tops` | p-001 – p-010 | "Summer Tops Sale" — 20% off |
-| Target p-012 or p-013 directly | Wide Leg Denim Jeans, Straight Cut Jeans | "Denim Weekend" — 15% off, code: DENIM15 |
-| Add a promotion targeting `outerwear` | p-021 – p-027 | "Coat Season Kickoff" — 200 TL off |
+Tests are deterministic. The clock is frozen at `2026-06-15T12:00:00Z` before the seed data is
+imported, and the mutable mock database is reset before every test.
 
 ---
 
-## Notes
+## Security notes
 
-- MSW only runs in development mode. Production builds are unaffected.
-- To add products or promotions, edit `src/mocks/db.ts`.
+- Dependency audit: `npm audit` reported **0 vulnerabilities** when the dependencies were installed
+  (October 2026). This reflects the advisory database at that time only; re-run `npm audit` before
+  relying on it.
+- API text (names, conflict messages) is rendered as plain React text; there is no
+  `dangerouslySetInnerHTML`. No secrets or environment credentials are used.
+- Client-side validation is a usability feature, not a security boundary. A real backend must
+  validate every request itself. The mock API is a development tool, not a backend.
+- The app has no authentication by design (internal tool, as specified).
+
+## Known limitations
+
+- The production bundle is a single ~1.3 MB chunk (mostly Ant Design). Route-level code splitting
+  was left out to keep the solution simple.
+- Product filters live in Redux, not in the URL. They survive in-app navigation but not a page
+  refresh or a shared link.
+- Conflict messages are shown exactly as the API returns them (one line per product). They are not
+  parsed or grouped.
