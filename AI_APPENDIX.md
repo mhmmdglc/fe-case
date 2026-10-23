@@ -11,7 +11,7 @@ verbatim. Every error and check described here happened during the project.
 | Tool | Model | Role in the project |
 |---|---|---|
 | Claude Code (desktop app) | Claude Opus 5.5 (`claude-opus-5-5`) | Main engineering partner: reviewing the starter and the case PDF, architecture planning, implementation, tests, and checks in the browser |
-| Astra | — | Independent second opinion: cross-checked Claude's architecture plan against the PDF and the mock API before any code was written |
+| Codex (OpenAI) | GPT Astra 6.0 | Independent second opinion: cross-checked Claude's architecture plan against the PDF and the mock API before any code was written |
 | Claude Code subagents | Same model as the session | Separate roles (Requirements Analyst, QA Engineer, Code Reviewer, Frontend Engineer) for independent verification, the follow-up features and the architecture refactor |
 | DeepSeek | — | Independent final check of the whole project after the refactor (see step 6 below) |
 
@@ -20,7 +20,7 @@ verbatim. Every error and check described here happened during the project.
 1. **Analysis and architecture before any code.**
    - With Claude (Opus 5.5) I reviewed the starter repository (including a security pass over the
      code, dependencies and the case PDF) and turned the PDF into a plan.
-   - I then had the plan cross-checked by Astra, compared the two views and fixed the open points.
+   - I then had the plan cross-checked by Codex (GPT Astra 6.0), compared the two views and fixed the open points.
      Examples: how Redux and TanStack Query share the promotion list, the real error shapes
      (422 `string[]`, 204 with no body), and the preview's empty-target behaviour.
    - Only after these decisions were written down (prompt 2) did implementation start.
@@ -70,9 +70,9 @@ verbatim. Every error and check described here happened during the project.
 
 ## 2. The two prompts that shaped the architecture
 
-### Prompt 1: Astra's cross-check of the architecture plan
+### Prompt 1: Codex's cross-check of the architecture plan
 
-This message carried Astra's review of Claude's first plan. It was followed by a longer draft
+This message carried Codex's review (GPT Astra 6.0) of Claude's first plan. It was followed by a longer draft
 implementation prompt, which is not repeated here. The text is quoted verbatim up to that draft,
 with two links to local file paths removed.
 
@@ -345,7 +345,7 @@ dağılımını paylaş ve mevcut kapsam içinde uygulamaya devam et.
 
 - **What the AI got wrong:** Claude's first plan said that `POST /api/promotions/preview` with
   `targetType: "products"` and no selected products returns all 50 products.
-- **How it was caught:** Astra's cross-check (prompt 1) compared this with
+- **How it was caught:** Codex's cross-check (prompt 1) compared this with
   `src/mocks/handlers.ts`. An empty array returns **no** products; all products come back only
   when the field is **missing**, or when the category is empty.
 - **Correction:** `buildPreviewRequest` returns `null` until the target is valid, so neither case
@@ -357,7 +357,7 @@ dağılımını paylaş ve mevcut kapsam içinde uygulamaya devam et.
   only the product list after a promotion change. As a result:
   - Redux would not have been filled on first load or on refetch;
   - a cached product detail page could show an old price.
-- **How it was caught:** Astra's cross-check against the PDF requirement "keep the Redux store in
+- **How it was caught:** Codex's cross-check against the PDF requirement "keep the Redux store in
   sync with the API response".
 - **Correction:**
   - One sync point in the query function, with a revision guard.
