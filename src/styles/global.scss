@@ -1,0 +1,34 @@
+@use "./tokens" as *;
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  min-width: $content-width;
+  background: $color-bg;
+}
+
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12.5px;
+  letter-spacing: 0.02em;
+}
+
+.price-old {
+  color: $color-text-muted;
+  text-decoration: line-through;
+  font-size: 12px;
+}
+
+.price-discounted {
+  color: $color-price-discount;
+  font-weight: 600;
+}
+
+.price-regular {
+  font-weight: 600;
+}

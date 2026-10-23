@@ -1,0 +1,40 @@
+@use "../../styles/tokens" as *;
+
+.grid {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(320px, 1fr);
+  gap: $space-6;
+  align-items: start;
+}
+
+.priceCard {
+  text-align: center;
+}
+
+.priceLabel {
+  color: $color-text-muted;
+  text-transform: uppercase;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+}
+
+.effectivePrice {
+  font-size: 40px;
+  font-weight: 700;
+  line-height: 1.2;
+  margin: $space-2 0;
+}
+
+.discounted {
+  color: $color-price-discount;
+}
+
+.basePrice {
+  color: $color-text-muted;
+  text-decoration: line-through;
+  font-size: 16px;
+}
+
+.saving {
+  margin-top: $space-2;
+}
