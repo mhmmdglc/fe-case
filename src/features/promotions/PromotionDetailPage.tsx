@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Breadcrumb, Button, Card, Descriptions, Result, Skeleton, Space, Table, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { Link, useNavigate, useParams } from "react-router-dom";
@@ -18,6 +19,8 @@ import {
   getPromotionStatus,
 } from "../../domain/promotion";
 import { useProductsByIds, useProductsInCategory } from "../products/queries";
+import { DeletePromotionDialog } from "./DeletePromotionDialog";
+import { PromotionFormDrawer } from "./PromotionFormDrawer";
 import { usePromotion } from "./queries";
 
 interface AffectedProduct {
@@ -35,6 +38,8 @@ export function PromotionDetailPage() {
   const navigate = useNavigate();
   const promotion = usePromotion(id);
   const promo = promotion.data;
+  const [duplicateOpen, setDuplicateOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
   // Affected products come from the API: a server-side category filter or the listed ids.
   const byCategory = useProductsInCategory(promo?.targetType === "category" ? (promo.targetCategory ?? null) : null);
@@ -110,6 +115,10 @@ export function PromotionDetailPage() {
           {p.name}
         </Typography.Title>
         <PromotionStatusTag status={getPromotionStatus(p)} />
+        <Button onClick={() => setDuplicateOpen(true)}>Duplicate</Button>
+        <Button danger onClick={() => setDeleteOpen(true)}>
+          Delete
+        </Button>
       </Space>
 
       <Card title="Promotion details">
@@ -161,6 +170,14 @@ export function PromotionDetailPage() {
           })}
         />
       </Card>
+
+      <PromotionFormDrawer open={duplicateOpen} onClose={() => setDuplicateOpen(false)} source={p} />
+      <DeletePromotionDialog
+        promotion={p}
+        open={deleteOpen}
+        onClose={() => setDeleteOpen(false)}
+        onDeleted={() => navigate("/promotions")}
+      />
     </Space>
   );
 }

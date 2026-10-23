@@ -313,6 +313,38 @@ made so they would not be reopened.
 - Tests: 82 before the round, 106 after QA round 1, 118 after round 2.
 - The agents' reports are summarised here; the full transcripts stay in the Claude Code session.
 
+### Feature round: delete impact and Duplicate
+
+I asked for:
+- a delete confirmation that explains the impact (affected products, days left);
+- an Edit button.
+
+The mock API has no update endpoint, and its contract stays unchanged. Claude explained this and
+let me choose. I chose **Duplicate**: the create form opens prefilled, and the original stays
+unchanged.
+
+The Manager first wrote one contract: function signatures, component props and the exact
+user-visible sentences. The Engineer and QA agents then worked in parallel from it, each in its
+own files.
+
+- **Engineer:** `deletionImpact`/`daysBetween`, `formValuesFromPromotion`, `DeletePromotionDialog`,
+  `PromotionFormDrawer`, and buttons on the list and detail pages.
+- **QA:** 35 tests from the same contract (153 in total). The product tags of a duplicate are
+  collapsed in jsdom, so QA reported them as not verifiable there.
+
+**Errors in Claude's own contract, caught by the Engineer agent and fixed by the Manager:**
+- The plural helper produced "1 product go back to their base price"; it now says "1 product goes
+  back to its base price".
+- For a scheduled promotion, the contract said a product's price "stays" at its base price. That is
+  wrong when another promotion discounts the product today. The dialog now shows today's effective
+  price.
+
+**Browser checks by the Manager:**
+- the Denim Weekend dialog: 2 products, 6 days left, coupon line, price changes;
+- Duplicate: tags visible, conflict with the original shown;
+- with new dates the copy saves as Scheduled and the original is unchanged;
+- deleting the copy from its detail page returns to the list.
+
 ## AI errors I caught and corrected
 
 ### 1. Wrong claim about the preview endpoint

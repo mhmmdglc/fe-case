@@ -1,4 +1,11 @@
-import type { CreatePromotionRequest, DiscountType, PreviewRequest, TargetType } from "../api/types";
+import type {
+  CreatePromotionRequest,
+  DiscountType,
+  PreviewRequest,
+  Product,
+  Promotion,
+  TargetType,
+} from "../api/types";
 
 export interface ProductOption {
   id: string;
@@ -42,6 +49,36 @@ export const emptyPromotionForm: PromotionFormValues = {
   targetProducts: [],
   targetCategory: null,
 };
+
+/**
+ * Create-form values copied from an existing promotion (Duplicate). `products` are the loaded
+ * details of its target products; an id that could not be loaded keeps the id as its label.
+ */
+export function formValuesFromPromotion(
+  promo: Promotion,
+  products: Pick<Product, "id" | "name" | "sku" | "category">[]
+): PromotionFormValues {
+  const byId = new Map(products.map((p) => [p.id, p]));
+  return {
+    name: `${promo.name} (copy)`,
+    discountType: promo.discountType,
+    value: promo.value,
+    startDate: promo.startDate,
+    endDate: promo.endDate,
+    couponCode: promo.couponCode ?? "",
+    targetType: promo.targetType,
+    targetProducts:
+      promo.targetType === "products"
+        ? (promo.targetProductIds ?? []).map((id) => {
+            const product = byId.get(id);
+            return product
+              ? { id, label: `${product.name} · ${product.sku}`, category: product.category }
+              : { id, label: id, category: "" };
+          })
+        : [],
+    targetCategory: promo.targetCategory ?? null,
+  };
+}
 
 /** Same rules as POST /api/promotions, checked before the request is sent. */
 export function validatePromotionForm(values: PromotionFormValues): FieldErrors {

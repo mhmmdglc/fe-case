@@ -69,7 +69,12 @@ the starter).
 - Conflict messages state that scheduled promotions count too.
 - Pressing Enter inside a field (for example to confirm a date) never submits the form; only the
   button does.
-- Delete with confirmation (extra; the API supports it).
+- Delete (list and promotion page) opens a dialog that states the impact: for an active promotion
+  which products go back to their base price and how many days it had left; for a scheduled one
+  that today's prices do not change and the planned discount is cancelled; for an expired one that
+  only the record goes; plus a coupon code that stops working.
+- Duplicate opens the create form prefilled with a copy (name + " (copy)"); the original stays
+  unchanged. Editing is not possible because the API has no update endpoint.
 
 ---
 

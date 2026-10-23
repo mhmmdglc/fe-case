@@ -3,10 +3,13 @@ import {
   buildCreatePayload,
   buildPreviewRequest,
   emptyPromotionForm,
+  formValuesFromPromotion,
   mapServerErrors,
   validatePromotionForm,
   type PromotionFormValues,
 } from "./promotionForm";
+import type { Promotion } from "../api/types";
+import { products } from "../mocks/db";
 
 const valid: PromotionFormValues = {
   ...emptyPromotionForm,
@@ -167,5 +170,83 @@ describe("mapServerErrors", () => {
     ]);
     expect(fieldErrors.value).toBe("Value must be positive.");
     expect(unmapped).toEqual(["percentage_off value cannot exceed 100", "something unexpected"]);
+  });
+});
+
+describe("formValuesFromPromotion", () => {
+  const denim: Promotion = {
+    id: "promo-002",
+    name: "Denim Weekend",
+    discountType: "percentage_off",
+    value: 15,
+    startDate: "2026-06-13",
+    endDate: "2026-06-20",
+    couponCode: "DENIM15",
+    targetType: "products",
+    // Deliberately not in catalogue order: the form keeps the promotion's order.
+    targetProductIds: ["p-013", "p-012"],
+  };
+
+  it("copies a product promotion with labelled products in targetProductIds order", () => {
+    expect(formValuesFromPromotion(denim, products)).toEqual({
+      name: "Denim Weekend (copy)",
+      discountType: "percentage_off",
+      value: 15,
+      startDate: "2026-06-13",
+      endDate: "2026-06-20",
+      couponCode: "DENIM15",
+      targetType: "products",
+      targetCategory: null,
+      targetProducts: [
+        { id: "p-013", label: "Straight Cut Jeans · BOT-JNS-002", category: "bottoms" },
+        { id: "p-012", label: "Wide Leg Denim Jeans · BOT-JNS-001", category: "bottoms" },
+      ],
+    });
+  });
+
+  it("falls back to the id as label for products it cannot find", () => {
+    const values = formValuesFromPromotion({ ...denim, targetProductIds: ["p-012", "p-999"] }, products);
+    expect(values.targetProducts).toEqual([
+      { id: "p-012", label: "Wide Leg Denim Jeans · BOT-JNS-001", category: "bottoms" },
+      { id: "p-999", label: "p-999", category: "" },
+    ]);
+  });
+
+  it("labels nothing from an empty product list", () => {
+    expect(formValuesFromPromotion(denim, []).targetProducts).toEqual([
+      { id: "p-013", label: "p-013", category: "" },
+      { id: "p-012", label: "p-012", category: "" },
+    ]);
+  });
+
+  it("copies a category promotion without coupon: empty coupon, no products", () => {
+    const tops: Promotion = {
+      id: "promo-003",
+      name: "Coat Season Kickoff",
+      discountType: "fixed_amount_off",
+      value: 200,
+      startDate: "2026-06-14",
+      endDate: "2026-06-29",
+      targetType: "category",
+      targetCategory: "outerwear",
+    };
+    expect(formValuesFromPromotion(tops, products)).toEqual({
+      name: "Coat Season Kickoff (copy)",
+      discountType: "fixed_amount_off",
+      value: 200,
+      startDate: "2026-06-14",
+      endDate: "2026-06-29",
+      couponCode: "",
+      targetType: "category",
+      targetCategory: "outerwear",
+      targetProducts: [],
+    });
+  });
+
+  it("gives a copy that passes form validation and keeps the original untouched", () => {
+    const original = structuredClone(denim);
+    const values = formValuesFromPromotion(denim, products);
+    expect(validatePromotionForm(values)).toEqual({});
+    expect(denim).toEqual(original);
   });
 });

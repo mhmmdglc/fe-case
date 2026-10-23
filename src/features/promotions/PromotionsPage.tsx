@@ -1,39 +1,35 @@
 import { useState } from "react";
-import { App, Alert, Button, Card, Drawer, Popconfirm, Space, Table, Typography } from "antd";
+import { Alert, Button, Card, Space, Table, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import type { PromotionStatus } from "../../api/types";
 import { useAppSelector } from "../../app/store";
 import {
   CategoryTag,
   CouponTag,
-  errorMessage,
   PromotionLink,
   PromotionStatusTag,
   QueryErrorAlert,
 } from "../../components/common";
 import { DISCOUNT_TYPE_LABELS, formatDiscount, getPromotionStatus, todayUtc } from "../../domain/promotion";
-import { PromotionForm } from "./PromotionForm";
-import { PromotionPreview } from "./PromotionPreview";
+import { DeletePromotionDialog } from "./DeletePromotionDialog";
+import { PromotionFormDrawer } from "./PromotionFormDrawer";
 import type { StoredPromotion } from "./promotionsSlice";
-import { useDeletePromotion, usePromotionsQuery } from "./queries";
+import { usePromotionsQuery } from "./queries";
 
 const STATUSES: PromotionStatus[] = ["Active", "Scheduled", "Expired"];
 
 export function PromotionsPage() {
   const query = usePromotionsQuery();
   const { items, loaded } = useAppSelector((state) => state.promotions);
-  const remove = useDeletePromotion();
-  const { message } = App.useApp();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [source, setSource] = useState<StoredPromotion | null>(null);
+  const [toDelete, setToDelete] = useState<StoredPromotion | null>(null);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const today = todayUtc();
 
-  const handleDelete = async (promo: StoredPromotion) => {
-    try {
-      await remove.mutateAsync(promo.id);
-      message.success(`"${promo.name}" was deleted.`);
-    } catch (error) {
-      message.error(`Could not delete "${promo.name}": ${errorMessage(error)}`);
-    }
+  const openDrawer = (promo: StoredPromotion | null) => {
+    setSource(promo);
+    setDrawerOpen(true);
   };
 
   const columns: ColumnsType<StoredPromotion> = [
@@ -91,25 +87,25 @@ export function PromotionsPage() {
     },
     {
       title: "",
-      width: 90,
+      width: 160,
       align: "right",
       render: (_, promo) => (
-        <Popconfirm
-          title="Delete this promotion?"
-          description="Prices of the affected products change immediately."
-          okText="Delete"
-          okButtonProps={{ danger: true }}
-          onConfirm={() => handleDelete(promo)}
-        >
+        <Space size={0}>
+          <Button type="link" size="small" onClick={() => openDrawer(promo)}>
+            Duplicate
+          </Button>
           <Button
             type="link"
             danger
             size="small"
-            loading={remove.isPending && remove.variables === promo.id}
+            onClick={() => {
+              setToDelete(promo);
+              setDeleteOpen(true);
+            }}
           >
             Delete
           </Button>
-        </Popconfirm>
+        </Space>
       ),
     },
   ];
@@ -120,7 +116,7 @@ export function PromotionsPage() {
         <Typography.Title level={3} style={{ margin: 0 }}>
           Promotions
         </Typography.Title>
-        <Button type="primary" onClick={() => setDrawerOpen(true)}>
+        <Button type="primary" onClick={() => openDrawer(null)}>
           New promotion
         </Button>
       </Space>
@@ -151,20 +147,11 @@ export function PromotionsPage() {
         )}
       </Card>
 
-      <Drawer
-        title="New promotion"
-        size={1100}
-        open={drawerOpen}
-        onClose={() => setDrawerOpen(false)}
-      >
-        <PromotionForm
-          onCreated={(promo) => {
-            message.success(`"${promo.name}" was created.`);
-            setDrawerOpen(false);
-          }}
-          renderAside={(values) => <PromotionPreview values={values} />}
-        />
-      </Drawer>
+      <PromotionFormDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} source={source} />
+      {/* The promotion stays set after closing so the dialog keeps its content while it animates out. */}
+      {toDelete && (
+        <DeletePromotionDialog promotion={toDelete} open={deleteOpen} onClose={() => setDeleteOpen(false)} />
+      )}
     </Space>
   );
 }
