@@ -5,7 +5,7 @@ import type {
   Product,
   Promotion,
   TargetType,
-} from "../api/types";
+} from "@/services/types";
 
 export interface ProductOption {
   id: string;

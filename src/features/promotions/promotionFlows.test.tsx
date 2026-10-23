@@ -2,17 +2,18 @@ import { act, render, renderHook, screen, waitFor, within } from "@testing-libra
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { describe, expect, it } from "vitest";
-import { ApiError } from "../../api/client";
-import { api } from "../../api/endpoints";
-import { queryKeys } from "../../api/queryKeys";
-import type { PromotionListItem } from "../../api/types";
-import { makeStore } from "../../app/store";
-import { emptyPromotionForm, type PromotionFormValues } from "../../domain/promotionForm";
-import { server } from "../../test/server";
-import { createWrapper } from "../../test/utils";
-import { PromotionForm } from "./PromotionForm";
-import { promotionsSynced } from "./promotionsSlice";
-import { useCreatePromotion, useDeletePromotion, usePromotionsQuery } from "./queries";
+import { ApiError } from "@/services/http/httpClient";
+import * as api from "@/services/promotions.service";
+import { queryKeys } from "@/services/queryKeys";
+import type { PromotionListItem } from "@/services/types";
+import { makeStore } from "@/app/store";
+import { emptyPromotionForm, type PromotionFormValues } from "@/domain/promotionForm";
+import { server } from "@/test/server";
+import { createWrapper } from "@/test/utils";
+import { PromotionForm } from "./components/PromotionForm";
+import { promotionsSynced } from "./store/promotionsSlice";
+import { useCreatePromotion, useDeletePromotion } from "./hooks/usePromotionMutations";
+import { usePromotionsQuery } from "./hooks/usePromotionQueries";
 
 // "today" is frozen at 2026-06-15 (see test/freezeDate.ts).
 const accessoriesPayload = {

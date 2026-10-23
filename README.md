@@ -29,6 +29,10 @@ committed, so `npm run init:msw` is only needed after upgrading `msw`.
 | `npm run build` | Type-check and production build. **The mock API is not included**, so this build has no data source on its own. |
 | `npm run demo` | Production build **with** the mock API (`VITE_ENABLE_MOCKS=true`), served by `vite preview` at `http://localhost:4173` |
 
+To use a real backend, set `VITE_API_BASE_URL` (for example `https://api.example.com`) at build
+time. Requests then go to `<base URL>/api/...`. Without it, requests stay on the app's own origin,
+where the mock API answers them.
+
 Promotions are kept in the page's memory by the mock API and reset on page refresh (by design of
 the starter).
 
@@ -82,17 +86,65 @@ the starter).
 
 ```
 src/
-  api/          fetch client (single ApiError model), endpoints, response types, query keys
-  domain/       pure business rules + tests (status, effective price, validation, payloads)
-  app/          Redux store, QueryClient
+  main.tsx              bootstrap: start the mock API, render <App />
+  app/                  composition root
+    App.tsx             providers + RouterProvider
+    router.tsx          route table, lazy-loaded pages, NotFoundPage
+    providers/          Redux, QueryClient, Ant Design theme and App context
+    store.ts hooks.ts   Redux store (feature reducers) and typed useApp* hooks
+    queryClient.ts mockApi.ts
+    layout/             header, navigation, Suspense fallback for lazy pages
+  services/             API layer, no React
+    http/httpClient.ts  fetch client: base URL, single ApiError model, mock reconnect hook
+    products.service.ts promotions.service.ts   endpoint paths and request functions
+    queryKeys.ts        query key factory, one branch per feature
+    types.ts            response and request types
+  domain/               pure business rules + tests (status, effective price, validation, payloads)
+  shared/               used by every feature, knows no feature
+    components/         tags, links, PriceCell, QueryErrorAlert (index.ts barrel)
+    hooks/ utils/       useDebouncedValue, errorMessage
+    routes.ts           every app URL: routes.product(id) etc., and the router's patterns
   features/
-    products/   filters slice, product queries, list and detail pages
-    promotions/ promotions slice, promotion queries/mutations, page, form, picker, preview
-  components/   layout and small shared UI
-  styles/       SCSS tokens and globals
-  test/         MSW Node server, frozen clock, render helpers
-  mocks/        starter mock API (unchanged)
+    products/           index.ts = public API
+      hooks/            product, category and picker queries
+      store/            filters slice
+      components/       filters, table, detail cards (props in, callbacks out)
+      pages/            ProductListPage, ProductDetailPage (containers)
+    promotions/         index.ts = public API
+      hooks/            queries (Redux sync), mutations (cache refresh), usePromotionForm
+      store/            promotions slice
+      components/       table, form, drawer, picker, preview, delete dialog, detail cards
+      pages/            PromotionsPage, PromotionDetailPage (containers)
+  styles/               SCSS tokens and globals
+  test/                 MSW Node server, frozen clock, render helpers
+  mocks/                starter mock API (unchanged)
 ```
+
+**Layering rules**
+- `domain/` imports only types from `services/types.ts`. No React, no requests.
+- `services/` imports nothing from the app; it is the only place that knows endpoint paths and
+  calls `fetch`. `VITE_API_BASE_URL` sets where the API lives (default: this origin).
+- `shared/` may use `services/` types and errors and `domain/`, never a feature or `app/`.
+- A feature uses `services/`, `domain/`, `shared/` and the typed hooks in `app/hooks.ts`. Another
+  feature is reached only through its `index.ts`. Inside a feature, imports are relative.
+- Pages are containers: they read hooks and Redux and pass plain props down. Components get props
+  and callbacks. Widgets that need their own data (product picker, preview, delete dialog, drawer,
+  target promotions) call feature hooks themselves.
+- `app/` wires everything together: reducers and pages come from each feature's `index.ts`, and
+  pages are loaded with `React.lazy`, so each page is its own chunk.
+- Imports across folders use the `@/` alias for `src/` (tsconfig `paths` + Vite `resolve.alias`).
+
+**Adding a feature**
+1. Create `features/<name>/` with `hooks/`, `components/`, `pages/` (and `store/` if needed) and
+   an `index.ts` that exports what others may use, plus a `<name>Pages` object of page loaders.
+2. Add types to `services/types.ts` and a `services/<name>.service.ts` with the endpoint paths.
+3. Add a key branch to `services/queryKeys.ts`; hooks use only these keys.
+4. Write the query and mutation hooks in `hooks/`. A mutation that changes prices or statuses
+   refreshes the affected key branches, as `usePromotionMutations` does.
+5. UI state that outlives a page goes into a slice in `store/`; register its reducer in
+   `app/store.ts` through the feature's `index.ts`.
+6. Add URL builders and patterns to `shared/routes.ts`, a lazy route in `app/router.tsx`, and a
+   navigation item in `app/layout/AppLayout.tsx`.
 
 **Server state vs. UI state**
 - TanStack Query performs every API call and owns caching, loading and error state.
@@ -101,7 +153,7 @@ src/
 
 **Keeping promotions in Redux in sync with the API**
 - The promotion list reaches Redux in one place: the `GET /api/promotions` query function
-  (`features/promotions/queries.ts`). Every successful fetch, the first one and each refetch,
+  (`features/promotions/hooks/usePromotionQueries.ts`). Every successful fetch, the first one and each refetch,
   replaces the stored list.
 - Create/delete update Redux only after the API confirms the change (no optimistic updates). A
   failed mutation never reaches Redux.

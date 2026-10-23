@@ -8,8 +8,8 @@ import {
   validatePromotionForm,
   type PromotionFormValues,
 } from "./promotionForm";
-import type { Promotion } from "../api/types";
-import { products } from "../mocks/db";
+import type { Promotion } from "@/services/types";
+import { products } from "@/mocks/db";
 
 const valid: PromotionFormValues = {
   ...emptyPromotionForm,

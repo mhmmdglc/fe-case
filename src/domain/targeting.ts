@@ -1,4 +1,4 @@
-import type { Product, Promotion, PromotionStatus } from "../api/types";
+import type { Product, Promotion, PromotionStatus } from "@/services/types";
 import { getPromotionStatus, todayUtc } from "./promotion";
 
 type ProductRef = Pick<Product, "id" | "category">;

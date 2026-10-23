@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { App as AntApp } from "antd";
 import { Provider } from "react-redux";
 import { MemoryRouter } from "react-router-dom";
-import { makeStore, type AppStore } from "../app/store";
+import { makeStore, type AppStore } from "@/app/store";
 
 export function makeTestQueryClient() {
   return new QueryClient({

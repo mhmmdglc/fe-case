@@ -1,9 +1,9 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import App from "./App";
-import { setUnreachableApiHandler } from "./api/client";
-import { mocksEnabled, reconnectMockApi, startMockApi } from "./app/mockApi";
-import "./styles/global.scss";
+import App from "@/app/App";
+import { mocksEnabled, reconnectMockApi, startMockApi } from "@/app/mockApi";
+import { setUnreachableApiHandler } from "@/services/http/httpClient";
+import "@/styles/global.scss";
 
 if (mocksEnabled) setUnreachableApiHandler(reconnectMockApi);
 

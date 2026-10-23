@@ -1,0 +1,40 @@
+@use "@/styles/tokens" as *;
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: $space-8;
+  padding: 0 $space-8;
+  background: $color-brand;
+}
+
+.brand {
+  color: #fff;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+
+  span {
+    font-weight: 400;
+    opacity: 0.7;
+    margin-left: $space-2;
+    font-size: 13px;
+    letter-spacing: 0;
+  }
+}
+
+.menu {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border-bottom: none;
+}
+
+.content {
+  width: 100%;
+  max-width: $content-width + 2 * $space-8;
+  margin: 0 auto;
+  padding: $space-6 $space-8 $space-8;
+  box-sizing: border-box;
+}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Promotion } from "../api/types";
+import type { Promotion } from "@/services/types";
 import { datesOverlap, nextScheduledPromotion, openPromotionsForProducts, promotionTargetsProduct } from "./targeting";
 
 const today = "2026-06-15";

@@ -1,0 +1,8 @@
+@use "@/styles/tokens" as *;
+
+.grid {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(320px, 1fr);
+  gap: $space-6;
+  align-items: start;
+}

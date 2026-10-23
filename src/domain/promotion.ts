@@ -1,4 +1,4 @@
-import type { DiscountType, Promotion, PromotionStatus } from "../api/types";
+import type { DiscountType, Promotion, PromotionStatus } from "@/services/types";
 
 /**
  * Today's date as YYYY-MM-DD in UTC. The mock API derives "today" the same way

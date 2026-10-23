@@ -10,7 +10,7 @@ let reconnecting: Promise<void> | null = null;
 
 export async function startMockApi(): Promise<void> {
   if (!mocksEnabled) return;
-  ({ worker } = await import("../mocks/browser"));
+  ({ worker } = await import("@/mocks/browser"));
   await worker.start(startOptions);
 }
 
