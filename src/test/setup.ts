@@ -17,6 +17,8 @@ Object.defineProperty(window, "matchMedia", {
   }),
 });
 
+Element.prototype.scrollIntoView = () => {};
+
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 beforeEach(() => resetMockDb());
 afterEach(() => {
