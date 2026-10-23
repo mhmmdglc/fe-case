@@ -38,8 +38,10 @@ the starter).
 
 **Products (`/products`)**
 - Table with name, category, SKU, base price, effective price and a promotion indicator.
-- A product with no promotion today but an upcoming one shows "Scheduled from <date>". The
+- The promotion column names the active promotion (linked to its page) and its coupon code. A
+  product with no promotion today but an upcoming one shows "Next: <promotion> · from <date>". The
   scheduled promotion matters because it already blocks overlapping new promotions.
+- Clicking anywhere on a row opens the product.
 - Server-side search, category filter (from `GET /api/categories`), promotion status filter and
   pagination (10 per page). Nothing is filtered on the client.
 - A fresh app load behaves as if "shirt" was searched. A search the user clears stays cleared for
@@ -49,8 +51,14 @@ the starter).
 - All product fields, a prominent effective price, the active promotion (or a clear message), the
   product's promotion status (Active / Scheduled / Expired) and every promotion that targets it.
 
+**Promotion detail (`/promotions/:id`)** (extra)
+- Discount, coupon, dates, status and target, plus every product the promotion covers (linked).
+  Each product shows its price with this promotion and its price today, with the promotion that
+  sets today's price when it is a different one.
+
 **Promotions (`/promotions`)**
-- List with discount type, value, target, affected products, validity and derived status.
+- List with discount type, value, target, affected products, validity and derived status; names
+  link to the promotion page.
 - Create form in a drawer: inline validation (no browser-native validation), product or category
   target, 422 messages mapped to fields, 409 conflict details listed while the form keeps its values.
 - Live impact preview (bonus): affected products, their new prices and conflicts, refreshed as the

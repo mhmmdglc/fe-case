@@ -1,4 +1,4 @@
-import { keepPreviousData, useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useInfiniteQuery, useQueries, useQuery } from "@tanstack/react-query";
 import { api } from "../../api/endpoints";
 import { queryKeys } from "../../api/queryKeys";
 import type { ProductListParams } from "../../api/types";
@@ -46,6 +46,16 @@ export function useProductsInCategory(category: string | null) {
     queryKey: queryKeys.productList(params),
     queryFn: ({ signal }) => api.getProducts(params, signal),
     enabled: Boolean(category),
+  });
+}
+
+/** Product details for a known list of ids (a promotion's specific products). */
+export function useProductsByIds(ids: string[]) {
+  return useQueries({
+    queries: ids.map((id) => ({
+      queryKey: queryKeys.productDetail(id),
+      queryFn: ({ signal }: { signal: AbortSignal }) => api.getProduct(id, signal),
+    })),
   });
 }
 

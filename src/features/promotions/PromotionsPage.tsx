@@ -1,9 +1,16 @@
 import { useState } from "react";
-import { App, Alert, Button, Card, Drawer, Popconfirm, Space, Table, Tag, Typography } from "antd";
+import { App, Alert, Button, Card, Drawer, Popconfirm, Space, Table, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import type { PromotionStatus } from "../../api/types";
 import { useAppSelector } from "../../app/store";
-import { CategoryTag, errorMessage, PromotionStatusTag, QueryErrorAlert } from "../../components/common";
+import {
+  CategoryTag,
+  CouponTag,
+  errorMessage,
+  PromotionLink,
+  PromotionStatusTag,
+  QueryErrorAlert,
+} from "../../components/common";
 import { DISCOUNT_TYPE_LABELS, formatDiscount, getPromotionStatus, todayUtc } from "../../domain/promotion";
 import { PromotionForm } from "./PromotionForm";
 import { PromotionPreview } from "./PromotionPreview";
@@ -35,8 +42,8 @@ export function PromotionsPage() {
       dataIndex: "name",
       render: (name: string, promo) => (
         <Space size={6}>
-          <span>{name}</span>
-          {promo.couponCode && <Tag className="mono">{promo.couponCode}</Tag>}
+          <PromotionLink id={promo.id}>{name}</PromotionLink>
+          {promo.couponCode && <CouponTag code={promo.couponCode} />}
         </Space>
       ),
     },

@@ -12,13 +12,17 @@ export function makeTestQueryClient() {
 }
 
 /** Fresh store and query client per test, wrapped like the real app. */
-export function createWrapper(store: AppStore = makeStore(), queryClient = makeTestQueryClient()) {
+export function createWrapper(
+  store: AppStore = makeStore(),
+  queryClient = makeTestQueryClient(),
+  initialEntries: string[] = ["/"]
+) {
   function Wrapper({ children }: { children: ReactNode }) {
     return (
       <Provider store={store}>
         <QueryClientProvider client={queryClient}>
           <AntApp>
-            <MemoryRouter>{children}</MemoryRouter>
+            <MemoryRouter initialEntries={initialEntries}>{children}</MemoryRouter>
           </AntApp>
         </QueryClientProvider>
       </Provider>

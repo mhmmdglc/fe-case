@@ -61,6 +61,13 @@ export function useDeletePromotion() {
   });
 }
 
+export function usePromotion(id: string) {
+  return useQuery({
+    queryKey: queryKeys.promotionDetail(id),
+    queryFn: ({ signal }) => api.getPromotion(id, signal),
+  });
+}
+
 /** Keyed by the full request: a late response can only land on its own key. */
 export function usePromotionPreview(request: PreviewRequest | null) {
   return useQuery({

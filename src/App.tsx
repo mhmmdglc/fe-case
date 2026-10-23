@@ -8,6 +8,7 @@ import { makeStore } from "./app/store";
 import { AppLayout } from "./components/AppLayout";
 import { ProductDetailPage } from "./features/products/ProductDetailPage";
 import { ProductListPage } from "./features/products/ProductListPage";
+import { PromotionDetailPage } from "./features/promotions/PromotionDetailPage";
 import { PromotionsPage } from "./features/promotions/PromotionsPage";
 
 function NotFoundPage() {
@@ -32,6 +33,7 @@ const router = createBrowserRouter([
       { path: "products", element: <ProductListPage /> },
       { path: "products/:id", element: <ProductDetailPage /> },
       { path: "promotions", element: <PromotionsPage /> },
+      { path: "promotions/:id", element: <PromotionDetailPage /> },
       { path: "*", element: <NotFoundPage /> },
     ],
   },

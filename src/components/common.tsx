@@ -1,4 +1,6 @@
+import type { ReactNode } from "react";
 import { Alert, Button, Tag } from "antd";
+import { Link } from "react-router-dom";
 import { ApiError } from "../api/client";
 import type { PromotionStatus } from "../api/types";
 import { formatPrice } from "../domain/promotion";
@@ -11,6 +13,27 @@ const STATUS_COLORS: Record<PromotionStatus, string> = {
 
 export function PromotionStatusTag({ status }: { status: PromotionStatus }) {
   return <Tag color={STATUS_COLORS[status]}>{status}</Tag>;
+}
+
+/** Link to a promotion's detail page; usable inside clickable table rows. */
+export function PromotionLink({ id, children }: { id: string; children: ReactNode }) {
+  return (
+    <Link to={`/promotions/${id}`} onClick={(e) => e.stopPropagation()}>
+      {children}
+    </Link>
+  );
+}
+
+export function ProductLink({ id, children }: { id: string; children: ReactNode }) {
+  return (
+    <Link to={`/products/${id}`} onClick={(e) => e.stopPropagation()}>
+      {children}
+    </Link>
+  );
+}
+
+export function CouponTag({ code }: { code: string }) {
+  return <Tag className="mono">{code}</Tag>;
 }
 
 export function CategoryTag({ category }: { category: string }) {

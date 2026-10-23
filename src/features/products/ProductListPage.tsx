@@ -1,10 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
-import { Button, Card, Empty, Input, Select, Space, Table, Tag, Tooltip, Typography } from "antd";
+import { Button, Card, Empty, Input, Select, Space, Table, Tag, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import { Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import type { ProductListItem, PromotionStatusFilter } from "../../api/types";
 import { useAppDispatch, useAppSelector } from "../../app/store";
-import { CategoryTag, PriceCell, QueryErrorAlert } from "../../components/common";
+import {
+  CategoryTag,
+  CouponTag,
+  PriceCell,
+  ProductLink,
+  PromotionLink,
+  QueryErrorAlert,
+} from "../../components/common";
 import { formatDiscount } from "../../domain/promotion";
 import { nextScheduledPromotion } from "../../domain/targeting";
 import type { StoredPromotion } from "../promotions/promotionsSlice";
@@ -33,9 +40,9 @@ function buildColumns(promotions: StoredPromotion[]): ColumnsType<ProductListIte
       title: "Product",
       dataIndex: "name",
       render: (name: string, product) => (
-        <Link to={`/products/${product.id}`} className={styles.name}>
-          {name}
-        </Link>
+        <span className={styles.name}>
+          <ProductLink id={product.id}>{name}</ProductLink>
+        </span>
       ),
     },
     { title: "Category", dataIndex: "category", width: 140, render: (c: string) => <CategoryTag category={c} /> },
@@ -57,25 +64,33 @@ function buildColumns(promotions: StoredPromotion[]): ColumnsType<ProductListIte
     {
       title: "Promotion",
       dataIndex: "activePromotion",
-      width: 220,
+      width: 280,
       render: (_: unknown, product) => {
         const promo = product.activePromotion;
         if (promo) {
+          // The list endpoint omits the coupon code; take it from the promotions in Redux.
+          const coupon = promotions.find((p) => p.id === promo.id)?.couponCode;
           return (
-            <Tooltip title={promo.name}>
-              <Tag color="green">On promotion · {formatDiscount(promo.discountType, promo.value)}</Tag>
-            </Tooltip>
+            <Space orientation="vertical" size={2}>
+              <Space size={4}>
+                <Tag color="green">On promotion · {formatDiscount(promo.discountType, promo.value)}</Tag>
+                {coupon && <CouponTag code={coupon} />}
+              </Space>
+              <span className={styles.promoName}>
+                <PromotionLink id={promo.id}>{promo.name}</PromotionLink>
+              </span>
+            </Space>
           );
         }
         // Not on promotion today, but one may already be scheduled (it blocks overlapping new ones).
         const upcoming = nextScheduledPromotion(promotions, product);
         return (
           <Space orientation="vertical" size={2}>
-            <Typography.Text type="secondary">No promotion</Typography.Text>
+            <Typography.Text type="secondary">No promotion today</Typography.Text>
             {upcoming && (
-              <Tooltip title={`${upcoming.name} · ${formatDiscount(upcoming.discountType, upcoming.value)} · ${upcoming.startDate} – ${upcoming.endDate}`}>
-                <Tag color="blue">Scheduled from {upcoming.startDate}</Tag>
-              </Tooltip>
+              <span className={styles.promoName}>
+                Next: <PromotionLink id={upcoming.id}>{upcoming.name}</PromotionLink> · from {upcoming.startDate}
+              </span>
             )}
           </Space>
         );
@@ -86,6 +101,7 @@ function buildColumns(promotions: StoredPromotion[]): ColumnsType<ProductListIte
 
 export function ProductListPage() {
   const dispatch = useAppDispatch();
+  const navigate = useNavigate();
   const filters = useAppSelector((state) => state.productFilters);
   const products = useProductList(filters);
   const categories = useCategories();
@@ -157,6 +173,10 @@ export function ProductListPage() {
             rowKey="id"
             columns={columns}
             dataSource={data?.products ?? []}
+            onRow={(product) => ({
+              onClick: () => navigate(`/products/${product.id}`),
+              className: "clickable-row",
+            })}
             // Previous page stays visible while the next one loads, marked as loading.
             loading={products.isFetching}
             locale={{

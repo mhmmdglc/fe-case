@@ -29,6 +29,9 @@ export const api = {
 
   getCategories: (signal?: AbortSignal) => apiRequest<string[]>("/api/categories", { signal }),
 
+  getPromotion: (id: string, signal?: AbortSignal) =>
+    apiRequest<PromotionWithStatus>(`/api/promotions/${encodeURIComponent(id)}`, { signal }),
+
   getPromotions: (signal?: AbortSignal) => apiRequest<PromotionListItem[]>("/api/promotions", { signal }),
 
   createPromotion: (body: CreatePromotionRequest) =>

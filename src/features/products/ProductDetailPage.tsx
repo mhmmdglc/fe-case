@@ -1,9 +1,16 @@
 import { Breadcrumb, Button, Card, Descriptions, Empty, Result, Skeleton, Space, Table, Tag, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { ApiError } from "../../api/client";
 import type { PromotionWithStatus } from "../../api/types";
-import { CategoryTag, PriceCell, PromotionStatusTag, QueryErrorAlert } from "../../components/common";
+import {
+  CategoryTag,
+  CouponTag,
+  PriceCell,
+  PromotionLink,
+  PromotionStatusTag,
+  QueryErrorAlert,
+} from "../../components/common";
 import {
   computeEffectivePrice,
   DISCOUNT_TYPE_LABELS,
@@ -19,6 +26,7 @@ import styles from "./ProductDetailPage.module.scss";
 export function ProductDetailPage() {
   const { id = "" } = useParams();
   const product = useProduct(id);
+  const navigate = useNavigate();
 
   if (product.isPending) return <Skeleton active paragraph={{ rows: 8 }} />;
 
@@ -47,7 +55,17 @@ export function ProductDetailPage() {
   const isDiscounted = p.effectivePrice !== p.basePrice;
 
   const historyColumns: ColumnsType<PromotionWithStatus> = [
-    { title: "Promotion", dataIndex: "name" },
+    {
+      title: "Promotion",
+      dataIndex: "name",
+      render: (name: string, promo) => <PromotionLink id={promo.id}>{name}</PromotionLink>,
+    },
+    {
+      title: "Coupon",
+      dataIndex: "couponCode",
+      width: 110,
+      render: (code?: string) => (code ? <CouponTag code={code} /> : "—"),
+    },
     {
       title: "Discount",
       width: 160,
@@ -111,7 +129,11 @@ export function ProductDetailPage() {
               <Descriptions
                 column={2}
                 items={[
-                  { key: "name", label: "Name", children: active.name },
+                  {
+                    key: "name",
+                    label: "Name",
+                    children: <PromotionLink id={active.id}>{active.name}</PromotionLink>,
+                  },
                   {
                     key: "status",
                     label: "Status",
@@ -124,7 +146,7 @@ export function ProductDetailPage() {
                     key: "coupon",
                     label: "Coupon code",
                     children: active.couponCode ? (
-                      <Tag className="mono">{active.couponCode}</Tag>
+                      <CouponTag code={active.couponCode} />
                     ) : (
                       <Typography.Text type="secondary">None</Typography.Text>
                     ),
@@ -146,6 +168,10 @@ export function ProductDetailPage() {
               columns={historyColumns}
               dataSource={p.allPromotions}
               pagination={false}
+              onRow={(promo) => ({
+                onClick: () => navigate(`/promotions/${promo.id}`),
+                className: "clickable-row",
+              })}
               locale={{ emptyText: "This product has never been on promotion." }}
             />
           </Card>

@@ -9,5 +9,6 @@ export const queryKeys = {
   categories: ["categories"] as const,
   promotions: ["promotions"] as const,
   promotionList: ["promotions", "list"] as const,
+  promotionDetail: (id: string) => ["promotions", "detail", id] as const,
   promotionPreview: (request: PreviewRequest) => ["promotions", "preview", request] as const,
 };
