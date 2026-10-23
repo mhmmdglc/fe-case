@@ -101,6 +101,24 @@ Redux store in sync with the API response".
 - `promotionFlows.test.tsx` checks that the cached detail entry is gone and that the refetched list
   replaces Redux.
 
+### 3. Conflicts with scheduled promotions were invisible in the UI
+
+**What the AI got wrong:** Claude's UI showed only promotions that are active today. In the
+product list, Linen Shirt Dress showed "No promotion". Yet creating a promotion for it was
+rejected as a conflict. The reason was the scheduled "New Arrivals Preview" (26–29 Oct), which the
+API's conflict check counts but the UI never showed.
+
+**How I caught it:** I tried to create a promotion for that product in the running app and
+compared the result with the product list (screenshots of both).
+
+**Fix:**
+- The product list shows "Scheduled from <date>" for an upcoming promotion.
+- Conflict messages say that scheduled promotions count.
+- The form lists the active and scheduled promotions already covering the chosen products or
+  category, including single-product promotions inside a category, and marks the ones that overlap
+  the chosen dates.
+- Rules are in `domain/targeting.ts` with tests; there is a form test for the dresses case.
+
 ### Issues the AI caught in its own work during implementation
 
 These were found by Claude while running the tooling. They are listed for completeness, not as my
@@ -117,3 +135,9 @@ own catches.
   test failed, and reading `src/mocks/db.ts` showed today+7…+9. The test dates were corrected.
 - **Hidden error alert.** While checking the form in the browser, the 409 conflict alert rendered
   above the visible part of the scrolled drawer. The form now scrolls server feedback into view.
+- **Enter submitted the form.** While verifying fix 3 in the browser, Claude saw validation errors
+  appear without pressing the submit button. Pressing Enter to confirm a date (or a select option)
+  triggered the browser's implicit form submission; with a complete form this would have saved the
+  promotion. Earlier in the session Claude had wrongly dismissed the same symptom as leftover error
+  text from an animation. Fix: Enter inside an input no longer submits the form. A test fails
+  without the fix and passes with it.

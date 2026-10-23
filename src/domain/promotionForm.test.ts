@@ -91,7 +91,7 @@ describe("buildCreatePayload", () => {
   it("sends only the category for a category target", () => {
     const payload = buildCreatePayload({
       ...valid,
-      targetProducts: [{ id: "p-001", label: "Shirt" }],
+      targetProducts: [{ id: "p-001", label: "Shirt", category: "tops" }],
     });
     expect(payload).toMatchObject({ targetType: "category", targetCategory: "knitwear" });
     expect(payload).not.toHaveProperty("targetProductIds");
@@ -102,8 +102,8 @@ describe("buildCreatePayload", () => {
       ...valid,
       targetType: "products",
       targetProducts: [
-        { id: "p-012", label: "Wide Leg Denim Jeans" },
-        { id: "p-013", label: "Straight Cut Jeans" },
+        { id: "p-012", label: "Wide Leg Denim Jeans", category: "bottoms" },
+        { id: "p-013", label: "Straight Cut Jeans", category: "bottoms" },
       ],
     });
     expect(payload).toMatchObject({ targetType: "products", targetProductIds: ["p-012", "p-013"] });

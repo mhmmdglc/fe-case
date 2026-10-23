@@ -38,6 +38,8 @@ the starter).
 
 **Products (`/products`)**
 - Table with name, category, SKU, base price, effective price and a promotion indicator.
+- A product with no promotion today but an upcoming one shows "Scheduled from <date>". The
+  scheduled promotion matters because it already blocks overlapping new promotions.
 - Server-side search, category filter (from `GET /api/categories`), promotion status filter and
   pagination (10 per page). Nothing is filtered on the client.
 - A fresh app load behaves as if "shirt" was searched. A search the user clears stays cleared for
@@ -53,6 +55,12 @@ the starter).
   target, 422 messages mapped to fields, 409 conflict details listed while the form keeps its values.
 - Live impact preview (bonus): affected products, their new prices and conflicts, refreshed as the
   form changes.
+- While a target is chosen, the form lists the active and scheduled promotions that already cover
+  it, and marks the ones that overlap the chosen dates. For a category this includes promotions set
+  on single products of that category.
+- Conflict messages state that scheduled promotions count too.
+- Pressing Enter inside a field (for example to confirm a date) never submits the form; only the
+  button does.
 - Delete with confirmation (extra; the API supports it).
 
 ---
@@ -153,5 +161,8 @@ imported, and the mutable mock database is reset before every test.
   was left out to keep the solution simple.
 - Product filters live in Redux, not in the URL. They survive in-app navigation but not a page
   refresh or a shared link.
+- The "already on this target" panel and the "Scheduled from" tag use a client-side copy of the
+  API's targeting rule (product ids or category). They only inform the user. The API's 409 response
+  still decides whether a promotion conflicts.
 - Conflict messages are shown exactly as the API returns them (one line per product). They are not
   parsed or grouped.

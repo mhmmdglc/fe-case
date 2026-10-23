@@ -45,11 +45,14 @@ export function PromotionPreview({ values }: { values: PromotionFormValues }) {
               style={{ marginBottom: 12 }}
               title={`${conflicts.length} conflict${conflicts.length > 1 ? "s" : ""} with existing promotions`}
               description={
-                <ul style={{ margin: 0, paddingLeft: 18, maxHeight: 120, overflowY: "auto" }}>
-                  {conflicts.map((c, i) => (
-                    <li key={i}>{c}</li>
-                  ))}
-                </ul>
+                <>
+                  <ul style={{ margin: 0, paddingLeft: 18, maxHeight: 120, overflowY: "auto" }}>
+                    {conflicts.map((c, i) => (
+                      <li key={i}>{c}</li>
+                    ))}
+                  </ul>
+                  <div className="conflict-hint">Conflicts include active and scheduled promotions whose dates overlap with yours.</div>
+                </>
               }
             />
           ) : (

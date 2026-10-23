@@ -25,6 +25,18 @@ export function ProductPicker({ id, value, onChange, status }: Props) {
   const loaded = query.data?.pages.flatMap((page) => page.products) ?? [];
   const total = query.data?.pages[0]?.total ?? 0;
 
+  // Select only reports value/label; keep each product's category alongside its id.
+  const handleChange = (selected: { value: string; label: unknown }[]) => {
+    const known = new Map<string, ProductOption>(value.map((p) => [p.id, p]));
+    for (const p of loaded) known.set(p.id, { id: p.id, label: `${p.name} · ${p.sku}`, category: p.category });
+    onChange(
+      selected.flatMap((s) => {
+        const option = known.get(String(s.value));
+        return option ? [option] : [];
+      })
+    );
+  };
+
   const loadMore = () => {
     if (query.hasNextPage && !query.isFetchingNextPage) void query.fetchNextPage();
   };
@@ -37,7 +49,7 @@ export function ProductPicker({ id, value, onChange, status }: Props) {
       status={status}
       placeholder="Search and select products"
       value={value.map((p) => ({ value: p.id, label: p.label }))}
-      onChange={(selected) => onChange(selected.map((s) => ({ id: String(s.value), label: String(s.label) })))}
+      onChange={handleChange}
       open={open}
       onOpenChange={setOpen}
       showSearch={{

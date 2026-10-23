@@ -100,6 +100,23 @@ describe("PromotionForm", () => {
     expect(posts).toEqual([]);
   });
 
+  it("does not submit when Enter is pressed inside a field", async () => {
+    const posts: string[] = [];
+    server.events.on("request:start", ({ request }) => {
+      if (request.method === "POST" && request.url.endsWith("/api/promotions")) posts.push(request.url);
+    });
+    const { Wrapper } = createWrapper();
+    // A complete, valid form: an implicit submit would create the promotion.
+    render(<PromotionForm initialValues={{ ...topsForm, targetCategory: "accessories" }} />, { wrapper: Wrapper });
+
+    await userEvent.type(screen.getByLabelText("Name"), " 2{Enter}");
+    await new Promise((resolve) => setTimeout(resolve, 200));
+
+    server.events.removeAllListeners();
+    expect(posts).toEqual([]);
+    expect((screen.getByLabelText("Name") as HTMLInputElement).value).toBe("Extra Tops Deal 2");
+  });
+
   it("keeps the values and lists the API conflicts on 409", async () => {
     const { Wrapper, store } = createWrapper();
     render(<PromotionForm initialValues={topsForm} />, { wrapper: Wrapper });
@@ -111,7 +128,8 @@ describe("PromotionForm", () => {
     expect(items).toHaveLength(10);
     expect(items[0].textContent).toContain("Summer Tops Sale");
     expect((screen.getByLabelText("Name") as HTMLInputElement).value).toBe("Extra Tops Deal");
-    expect(store.getState().promotions.items).toEqual([]);
+    expect(screen.getByText(/include active and scheduled promotions/i)).toBeTruthy();
+    expect(store.getState().promotions.items.map((p) => p.name)).not.toContain("Extra Tops Deal");
   });
 
   it("maps 422 messages to fields and shows the unknown ones above the form", async () => {
@@ -145,6 +163,21 @@ describe("PromotionForm", () => {
 
     await waitFor(() => expect(created).toEqual(["Extra Tops Deal"]));
     expect((screen.getByLabelText("Name") as HTMLInputElement).value).toBe("");
-    expect(store.getState().promotions.items.map((p) => p.name)).toEqual(["Extra Tops Deal"]);
+    expect(store.getState().promotions.items.map((p) => p.name)).toContain("Extra Tops Deal");
+  });
+
+  it("lists single-product promotions inside a chosen category before submitting", async () => {
+    const { Wrapper } = createWrapper();
+    // "New Arrivals Preview" targets p-028…p-030 (all dresses) on 2026-06-18 – 2026-06-21.
+    render(<PromotionForm initialValues={{ ...topsForm, targetCategory: "dresses" }} />, { wrapper: Wrapper });
+
+    const title = await screen.findByText(/1 active or scheduled promotion already on this target/i);
+    const panel = title.closest(".ant-alert") as HTMLElement;
+    expect(within(panel).getByText("New Arrivals Preview")).toBeTruthy();
+    expect(within(panel).getByText("Scheduled")).toBeTruthy();
+    expect(within(panel).getByText("Overlaps your dates")).toBeTruthy();
+    expect(
+      within(panel).getByText("Single-product promotion on: Midi Wrap Dress, Floral Maxi Dress, Linen Shirt Dress")
+    ).toBeTruthy();
   });
 });

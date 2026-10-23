@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button, Card, Empty, Input, Select, Space, Table, Tag, Tooltip, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { Link } from "react-router-dom";
@@ -6,6 +6,9 @@ import type { ProductListItem, PromotionStatusFilter } from "../../api/types";
 import { useAppDispatch, useAppSelector } from "../../app/store";
 import { CategoryTag, PriceCell, QueryErrorAlert } from "../../components/common";
 import { formatDiscount } from "../../domain/promotion";
+import { nextScheduledPromotion } from "../../domain/targeting";
+import type { StoredPromotion } from "../promotions/promotionsSlice";
+import { usePromotionsQuery } from "../promotions/queries";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import {
   categoryChanged,
@@ -24,52 +27,72 @@ const PROMOTION_STATUS_OPTIONS: { value: PromotionStatusFilter; label: string }[
   { value: "no_promotion", label: "No promotion" },
 ];
 
-const columns: ColumnsType<ProductListItem> = [
-  {
-    title: "Product",
-    dataIndex: "name",
-    render: (name: string, product) => (
-      <Link to={`/products/${product.id}`} className={styles.name}>
-        {name}
-      </Link>
-    ),
-  },
-  { title: "Category", dataIndex: "category", width: 140, render: (c: string) => <CategoryTag category={c} /> },
-  { title: "SKU", dataIndex: "sku", width: 150, render: (sku: string) => <span className="mono">{sku}</span> },
-  {
-    title: "Base price",
-    dataIndex: "basePrice",
-    width: 140,
-    align: "right",
-    render: (_: number, p) => <PriceCell basePrice={p.basePrice} effectivePrice={p.basePrice} />,
-  },
-  {
-    title: "Effective price",
-    dataIndex: "effectivePrice",
-    width: 200,
-    align: "right",
-    render: (_: number, p) => <PriceCell basePrice={p.basePrice} effectivePrice={p.effectivePrice} />,
-  },
-  {
-    title: "Promotion",
-    dataIndex: "activePromotion",
-    width: 220,
-    render: (_: unknown, { activePromotion: promo }) =>
-      promo ? (
-        <Tooltip title={promo.name}>
-          <Tag color="green">On promotion · {formatDiscount(promo.discountType, promo.value)}</Tag>
-        </Tooltip>
-      ) : (
-        <Typography.Text type="secondary">No promotion</Typography.Text>
+function buildColumns(promotions: StoredPromotion[]): ColumnsType<ProductListItem> {
+  return [
+    {
+      title: "Product",
+      dataIndex: "name",
+      render: (name: string, product) => (
+        <Link to={`/products/${product.id}`} className={styles.name}>
+          {name}
+        </Link>
       ),
-  },
-];
+    },
+    { title: "Category", dataIndex: "category", width: 140, render: (c: string) => <CategoryTag category={c} /> },
+    { title: "SKU", dataIndex: "sku", width: 150, render: (sku: string) => <span className="mono">{sku}</span> },
+    {
+      title: "Base price",
+      dataIndex: "basePrice",
+      width: 140,
+      align: "right",
+      render: (_: number, p) => <PriceCell basePrice={p.basePrice} effectivePrice={p.basePrice} />,
+    },
+    {
+      title: "Effective price",
+      dataIndex: "effectivePrice",
+      width: 200,
+      align: "right",
+      render: (_: number, p) => <PriceCell basePrice={p.basePrice} effectivePrice={p.effectivePrice} />,
+    },
+    {
+      title: "Promotion",
+      dataIndex: "activePromotion",
+      width: 220,
+      render: (_: unknown, product) => {
+        const promo = product.activePromotion;
+        if (promo) {
+          return (
+            <Tooltip title={promo.name}>
+              <Tag color="green">On promotion · {formatDiscount(promo.discountType, promo.value)}</Tag>
+            </Tooltip>
+          );
+        }
+        // Not on promotion today, but one may already be scheduled (it blocks overlapping new ones).
+        const upcoming = nextScheduledPromotion(promotions, product);
+        return (
+          <Space orientation="vertical" size={2}>
+            <Typography.Text type="secondary">No promotion</Typography.Text>
+            {upcoming && (
+              <Tooltip title={`${upcoming.name} · ${formatDiscount(upcoming.discountType, upcoming.value)} · ${upcoming.startDate} – ${upcoming.endDate}`}>
+                <Tag color="blue">Scheduled from {upcoming.startDate}</Tag>
+              </Tooltip>
+            )}
+          </Space>
+        );
+      },
+    },
+  ];
+}
 
 export function ProductListPage() {
   const dispatch = useAppDispatch();
   const filters = useAppSelector((state) => state.productFilters);
   const products = useProductList(filters);
   const categories = useCategories();
+  // Promotions (via Redux) only add the "scheduled" hint; the table itself never waits for them.
+  usePromotionsQuery();
+  const promotions = useAppSelector((state) => state.promotions.items);
+  const columns = useMemo(() => buildColumns(promotions), [promotions]);
 
   // The input is local; Redux receives the debounced search term.
   const [searchInput, setSearchInput] = useState(filters.q);

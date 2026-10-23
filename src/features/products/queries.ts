@@ -30,6 +30,25 @@ export function useCategories() {
   });
 }
 
+// Categories hold about 10 products; one server-side filtered page covers a whole category.
+const CATEGORY_PAGE_LIMIT = 100;
+
+/** Products of one category (server-side filter), used to show what a category target covers. */
+export function useProductsInCategory(category: string | null) {
+  const params: ProductListParams = {
+    q: "",
+    category: category ?? "",
+    promotionStatus: "all",
+    page: 1,
+    limit: CATEGORY_PAGE_LIMIT,
+  };
+  return useQuery({
+    queryKey: queryKeys.productList(params),
+    queryFn: ({ signal }) => api.getProducts(params, signal),
+    enabled: Boolean(category),
+  });
+}
+
 /** Paged product search for the promotion target picker. */
 export function useProductOptions(q: string, enabled: boolean) {
   return useInfiniteQuery({

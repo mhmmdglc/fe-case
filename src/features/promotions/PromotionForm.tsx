@@ -17,6 +17,7 @@ import {
 import { useCategories } from "../products/queries";
 import { ProductPicker } from "./ProductPicker";
 import { useCreatePromotion } from "./queries";
+import { TargetPromotions } from "./TargetPromotions";
 
 const DATE_FORMAT = "YYYY-MM-DD";
 
@@ -215,11 +216,22 @@ export function PromotionForm({ initialValues = emptyPromotionForm, onCreated, r
           />
         </Form.Item>
       )}
+
+      <TargetPromotions values={values} />
     </>
   );
 
   return (
-    <Form layout="vertical" onFinish={handleSubmit} aria-label="Create promotion">
+    <Form
+      layout="vertical"
+      onFinish={handleSubmit}
+      aria-label="Create promotion"
+      // Enter confirms a date or a select option; it must not also submit the form
+      // (that would save a half-reviewed promotion). Only the button submits.
+      onKeyDown={(e) => {
+        if (e.key === "Enter" && e.target instanceof HTMLInputElement) e.preventDefault();
+      }}
+    >
       <div ref={feedbackRef} />
       <Space orientation="vertical" size="middle" style={{ width: "100%" }}>
         {conflicts.length > 0 && (
@@ -228,11 +240,14 @@ export function PromotionForm({ initialValues = emptyPromotionForm, onCreated, r
             showIcon
             title="This promotion overlaps existing promotions and was not saved"
             description={
-              <ul style={{ margin: 0, paddingLeft: 18, maxHeight: 180, overflowY: "auto" }}>
-                {conflicts.map((conflict, i) => (
-                  <li key={i}>{conflict}</li>
-                ))}
-              </ul>
+              <>
+                <ul style={{ margin: 0, paddingLeft: 18, maxHeight: 180, overflowY: "auto" }}>
+                  {conflicts.map((conflict, i) => (
+                    <li key={i}>{conflict}</li>
+                  ))}
+                </ul>
+                <div className="conflict-hint">Conflicts include active and scheduled promotions whose dates overlap with yours.</div>
+              </>
             }
           />
         )}

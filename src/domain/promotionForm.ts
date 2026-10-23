@@ -3,6 +3,8 @@ import type { CreatePromotionRequest, DiscountType, PreviewRequest, TargetType }
 export interface ProductOption {
   id: string;
   label: string;
+  /** Needed to find category-wide promotions that already cover a selected product. */
+  category: string;
 }
 
 export interface PromotionFormValues {

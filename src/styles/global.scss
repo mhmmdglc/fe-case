@@ -32,3 +32,14 @@ body {
 .price-regular {
   font-weight: 600;
 }
+
+.conflict-hint {
+  margin-top: $space-2;
+  color: $color-text-muted;
+  font-size: 12px;
+}
+
+.target-promo-meta {
+  color: $color-text-muted;
+  font-size: 12.5px;
+}
